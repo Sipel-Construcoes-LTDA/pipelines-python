@@ -24,12 +24,17 @@ O repositório está organizado por pastas, onde cada uma representa um domínio
 
 ```text
 pipelines-dados-SIPEL/
-├── tratamento_faturamentos_comercial/ # Pipeline de Faturamento (Ativo)
-│   ├── etl_pipeline.py                # Script principal de ETL
-│   └── faturamentos_tratados.csv      # Output gerado
-├── GEMINI.md                          # Diretrizes da IA e padrões de engenharia
-├── README.md                          # Documentação oficial
-└── .gitignore                         # Configuração de exclusão do Git
+├── faturamento_comercial/         # Pipeline de Faturamento
+│   ├── etl_pipeline.py            # Script principal de ETL
+│   └── faturamentos_tratados.csv  # Output gerado
+├── produtividade_comercial/       # Pipeline de Produtividade (Novo)
+│   ├── 2024/                      # Arquivos fonte (Histórico)
+│   ├── 2025/                      # Arquivos fonte (Corrente)
+│   ├── etl_produtividade.py       # Script principal de ETL
+│   └── produtividade_tratada.csv  # Output gerado (CSV ; UTF-8)
+├── GEMINI.md                      # Diretrizes da IA e padrões de engenharia
+├── README.md                      # Documentação oficial
+└── .gitignore                     # Configuração de exclusão do Git
 ```
 
 ## 🤖 Integração com Gemini AI
@@ -43,15 +48,30 @@ Este repositório segue diretrizes estritas de desenvolvimento definidas no arqu
 ## ⚙️ Pipelines Ativos
 
 ### 1. Tratamento de Faturamentos Comerciais
-*Local: `/tratamento_faturamentos_comercial`*
+*Local: `/faturamento_comercial`*
 
-Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas planilhas.
+Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas planilhas do Google Sheets.
 *   **Input**: Links de exportação do Google Sheets.
 *   **Regras de Negócio**:
     *   Remoção de cabeçalhos mesclados.
     *   Limpeza de prefixos alfanuméricos (`SOL`, `B-`, `X-`).
     *   **Normalização Estrita**: Preenchimento com zeros à esquerda (`zfill`) para garantir IDs com **7 dígitos**.
     *   Deduplicação global de registros.
+
+### 2. Produtividade Comercial
+*Local: `/produtividade_comercial`*
+
+Pipeline consolidado para processamento de relatórios de produtividade (Notas de Serviço) extraídos do sistema legado (arquivos `.XLS` tabulados).
+*   **Input**: Arquivos `.XLS` organizados por pastas de ano (`2024`, `2025`, `2026`).
+*   **Lógica de Seleção**:
+    *   Processa todos os arquivos mensais fechados.
+    *   Identifica e processa **apenas o arquivo "Abertas" mais recente** (baseado no nome/data), ignorando versões obsoletas.
+*   **Regras de Negócio**:
+    *   **Padronização de Datas**: Conversão de múltiplos formatos (`dd.mm.yyyy` e `ddMMyyyy`) para `datetime` unificado.
+    *   **Mapeamento de Colunas**: Renomeação de campos técnicos (`InícioAvar` -> `Inicio da Nota`, `Concl.desj` -> `Conc. desejada`).
+    *   **Classificação de Vistoria**: Análise do campo "Nº do pedido" para identificar vistorias (`VV`, `V V`, `VV.`).
+    *   **Limpeza**: Remoção de colunas técnicas desnecessárias e linhas sem número de nota.
+    *   **Output**: CSV separado por ponto e vírgula (`;`) com encoding `utf-8-sig` (compatível com Excel BR).
 
 ## 📦 Como Executar
 
@@ -60,12 +80,18 @@ Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas
 pip install pandas requests
 ```
 
-### Execução do Pipeline
-Navegue até a pasta do módulo desejado e execute o script Python:
+### Execução dos Pipelines
 
+**Para Faturamento:**
 ```bash
-cd tratamento_faturamentos_comercial
+cd faturamento_comercial
 python etl_pipeline.py
+```
+
+**Para Produtividade:**
+```bash
+cd produtividade_comercial
+python etl_produtividade.py
 ```
 
 ## 📄 Licença
