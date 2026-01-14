@@ -188,22 +188,30 @@ def process_pipeline():
     # Join Valores 2025
     full_df = pd.merge(full_df, dim_val_2025, left_on='PK', right_on='FK_FINAL', how='left')
     
-    # Seleção final e Deduplicação
-    # M Code: Table.Distinct(..., {"Nota", "GrCoAt", "Fim avaria", "Data", "ChaveFK", "BASE OPERACIONAL", "Valor Total 2025"})
-    # Vamos manter colunas úteis
-    cols_to_keep = [
-        "Nota", "GrCoAt", "CódA", "Data", "ChaveFK", 
-        "BASE OPERACIONAL", "Valor Total 2024", "Valor Total 2025", 
-        "Fim avaria" # Se existir
-    ]
-    # Filtra colunas que realmente existem
-    cols_to_keep = [c for c in cols_to_keep if c in full_df.columns]
+    # Seleção final e Agrupamento (Soma por Nota)
+    # Definir colunas chave para a nota (removendo detalhes do item como GrCoAt e CódA)
+    group_cols = ["Nota", "Data", "BASE OPERACIONAL"]
+    if "Fim avaria" in full_df.columns:
+        group_cols.append("Fim avaria")
     
-    final_df = full_df[cols_to_keep].drop_duplicates()
+    # Preencher NaNs com 0 para garantir soma correta
+    cols_vals = ["Valor Total 2024", "Valor Total 2025"]
+    for c in cols_vals:
+        if c not in full_df.columns:
+            full_df[c] = 0.0
+        full_df[c] = full_df[c].fillna(0.0)
+
+    # Agrupar e Somar
+    final_df = full_df.groupby(group_cols, as_index=False)[cols_vals].sum()
+    
+    # Remover linhas onde ambos os valores são zero (antigos nulos)
+    initial_len = len(final_df)
+    final_df = final_df[~((final_df['Valor Total 2024'] == 0) & (final_df['Valor Total 2025'] == 0))]
+    logger.info(f"Linhas removidas (valores zerados): {initial_len - len(final_df)}")
     
     # Output
-    output_path = os.path.join(BASE_DIR, "faturamentos_executados_tratados.csv")
-    final_df.to_csv(output_path, index=False, sep=';', encoding='utf-8-sig') # CSV Excel friendly
+    output_path = os.path.join(BASE_DIR, "faturamentos_executados_consolidado.csv")
+    final_df.to_csv(output_path, index=False, sep=';', encoding='utf-8-sig', decimal=',') # CSV Excel friendly
     logger.info(f"Pipeline concluído. Arquivo salvo em: {output_path}")
     logger.info(f"Linhas finais: {len(final_df)}")
 
