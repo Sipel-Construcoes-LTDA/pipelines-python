@@ -191,8 +191,15 @@ def process_pipeline():
     # Seleção final e Agrupamento (Soma por Nota)
     # Definir colunas chave para a nota (removendo detalhes do item como GrCoAt e CódA)
     group_cols = ["Nota", "Data", "BASE OPERACIONAL"]
-    if "Fim avaria" in full_df.columns:
-        group_cols.append("Fim avaria")
+    
+    # Colunas adicionais para manter no agrupamento
+    additional_cols = ["Fim avaria", "Texto code para codificação", "Local"]
+    
+    for col in additional_cols:
+        if col in full_df.columns:
+            # Garante que não haja NaNs que quebrariam o groupby (ou criariam grupos separados indesejados)
+            full_df[col] = full_df[col].fillna('').astype(str).str.strip()
+            group_cols.append(col)
     
     # Preencher NaNs com 0 para garantir soma correta
     cols_vals = ["Valor Total 2024", "Valor Total 2025"]
