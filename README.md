@@ -24,10 +24,15 @@ O repositório está organizado por pastas, onde cada uma representa um domínio
 
 ```text
 pipelines-dados-SIPEL/
+├── encerramento_tecnico/          # Pipeline de Encerramento Técnico (Novo)
+│   ├── data/                      # Dados auxiliares e processados
+│   └── src/etl_encerramento.py    # Script principal de ETL
 ├── faturamento_comercial/         # Pipeline de Faturamento
-│   ├── etl_pipeline.py            # Script principal de ETL
+│   ├── etl_faturamento.py         # Tratamento de IDs Google Sheets
+│   ├── etl_valores_executados.py  # Consolidação de Valores Executados (Novo)
+│   ├── valores_executados/        # Arquivos .XLS e Dimensões
 │   └── faturamentos_tratados.csv  # Output gerado
-├── produtividade_comercial/       # Pipeline de Produtividade (Novo)
+├── produtividade_comercial/       # Pipeline de Produtividade
 │   ├── 2024/                      # Arquivos fonte (Histórico)
 │   ├── 2025/                      # Arquivos fonte (Corrente)
 │   ├── etl_produtividade.py       # Script principal de ETL
@@ -49,6 +54,7 @@ Este repositório segue diretrizes estritas de desenvolvimento definidas no arqu
 
 ### 1. Tratamento de Faturamentos Comerciais
 *Local: `/faturamento_comercial`*
+*Script: `etl_faturamento.py`*
 
 Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas planilhas do Google Sheets.
 *   **Input**: Links de exportação do Google Sheets.
@@ -58,40 +64,175 @@ Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas
     *   **Normalização Estrita**: Preenchimento com zeros à esquerda (`zfill`) para garantir IDs com **7 dígitos**.
     *   Deduplicação global de registros.
 
-### 2. Produtividade Comercial
-*Local: `/produtividade_comercial`*
+### 2. Consolidação de Valores Executados
+*Local: `/faturamento_comercial`*
+*Script: `etl_valores_executados.py`*
 
-Pipeline consolidado para processamento de relatórios de produtividade (Notas de Serviço) extraídos do sistema legado (arquivos `.XLS` tabulados).
+Pipeline analítico para cálculo e consolidação financeira de serviços executados.
+*   **Input**: Relatórios `.XLS` anuais (2024-2026) e Tabelas Dimensão (`dim_Ct`, `dim_valor_servicos`).
+*   **Regras de Negócio**:
+    *   **Enriquecimento**: Cruzamento com tabelas dimensionais para obter valores unitários e Base Operacional.
+    *   **Cálculo**: Quantidade * Valor Unitário.
+    *   **Consolidação**: Agrupamento por Base Operacional e soma anual.
+    *   **Limpeza**: Tratamento de nulos e conversão de textos para floats.
+*   **Output**: `faturamentos_executados_consolidado.csv`.
+
+### 3. Produtividade Comercial
+*Local: `/produtividade_comercial`*
+*Script: `etl_produtividade.py`*
+
+Pipeline consolidado para processamento de relatórios de produtividade (Notas de Serviço) extraídos do sistema legado.
 *   **Input**: Arquivos `.XLS` organizados por pastas de ano (`2024`, `2025`, `2026`).
 *   **Lógica de Seleção**:
     *   Processa todos os arquivos mensais fechados.
-    *   Identifica e processa **apenas o arquivo "Abertas" mais recente** (baseado no nome/data), ignorando versões obsoletas.
+    *   Identifica e processa **apenas o arquivo "Abertas" mais recente**.
 *   **Regras de Negócio**:
-    *   **Padronização de Datas**: Conversão de múltiplos formatos (`dd.mm.yyyy` e `ddMMyyyy`) para `datetime` unificado.
-    *   **Mapeamento de Colunas**: Renomeação de campos técnicos (`InícioAvar` -> `Inicio da Nota`, `Concl.desj` -> `Conc. desejada`).
-    *   **Classificação de Vistoria**: Análise do campo "Nº do pedido" para identificar vistorias (`VV`, `V V`, `VV.`).
-    *   **Limpeza**: Remoção de colunas técnicas desnecessárias e linhas sem número de nota.
-    *   **Output**: CSV separado por ponto e vírgula (`;`) com encoding `utf-8-sig` (compatível com Excel BR).
+    *   **Padronização de Datas**: Unificação para formato `datetime`.
+    *   **Mapeamento de Colunas**: Renomeação de campos técnicos para termos de negócio.
+    *   **Classificação**: Identificação de vistorias via regex no "Nº do pedido".
+    *   **Output**: CSV UTF-8 SIG com separador ponto e vírgula.
+
+### 4. Encerramento Técnico
+*Local: `/encerramento_tecnico`*
+*Script: `src/etl_encerramento.py`*
+
+Pipeline de integração para rastreamento de encerramentos técnicos e status de projetos.
+*   **Input**:
+    *   Google Sheets (Jacobina, Bonfim, Juazeiro).
+    *   Auxiliares Locais (`aux_online`, `aux_gse`, `aux_pastas_aceitas`).
+*   **Regras de Negócio**:
+    *   **Chave Primária**: Extração e normalização do `PROJETO` para 7 dígitos (`PROJETO_FATO`).
+    *   **Cálculo de Ciclo**: Determinação automática da data de ciclo baseada no mês e data de baixa.
+    *   **Enriquecimento**: Join com dados do sistema online e GSE para status atualizado.
+    *   **Priorização**: Lógica para resolver duplicatas baseada na data de análise mais recente.
+*   **Output**: `data/processed/faturamentos_encerramento.csv`.
 
 ## 📦 Como Executar
 
 ### Instalação das Dependências
 ```bash
-pip install pandas requests
+pip install pandas requests openpyxl xlrd
 ```
 
 ### Execução dos Pipelines
 
-**Para Faturamento:**
+**Faturamento (IDs):**
 ```bash
 cd faturamento_comercial
-python etl_pipeline.py
+python etl_faturamento.py
 ```
 
-**Para Produtividade:**
+**Valores Executados:**
+```bash
+cd faturamento_comercial
+python etl_valores_executados.py
+```
+
+**Produtividade:**
 ```bash
 cd produtividade_comercial
 python etl_produtividade.py
+```
+
+**Encerramento Técnico:**
+```bash
+cd encerramento_tecnico/src
+python etl_encerramento.py
+```
+
+---
+
+## 📊 Diagramas de Fluxo
+
+### 1. Produtividade Comercial
+```mermaid
+graph TD
+    subgraph Input
+        A[Pastas Anuais<br/>2024 / 2025 / 2026]
+    end
+    
+    subgraph ETL[etl_produtividade.py]
+        B{Verificação de Arquivos}
+        C[Selecionar Meses Fechados]
+        D[Selecionar 'Abertas' mais recente]
+        E[Normalizar Datas & Colunas]
+        F[Filtrar Vistorias]
+    end
+    
+    subgraph Output
+        G[(produtividade_tratada.csv)]
+    end
+
+    A --> B
+    B --> C & D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+```
+
+### 2. Encerramento Técnico
+```mermaid
+graph TD
+    subgraph Sources
+        A[Google Sheets<br/>Jacobina/Bonfim/Juazeiro]
+        B[Auxiliar: Online]
+        C[Auxiliar: GSE]
+        D[Auxiliar: Pastas Aceitas]
+    end
+
+    subgraph ETL[etl_encerramento.py]
+        E[Extrair & Limpar IDs]
+        F[Join: Status Online]
+        G[Join: Status GSE]
+        H[Join: Data Baixa]
+        I[Cálculo: Data de Ciclo]
+    end
+
+    subgraph Output
+        J[(faturamentos_encerramento.csv)]
+    end
+
+    A --> E
+    B --> F
+    C --> G
+    D --> H
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+```
+
+### 3. Valores Executados (Financeiro)
+```mermaid
+graph TD
+    subgraph Inputs
+        A[Arquivos .XLS<br/>Valores Executados]
+        B[Dimensão: CT & Base]
+        C[Dimensão: Valores Serviços]
+    end
+
+    subgraph ETL[etl_valores_executados.py]
+        D[Ler & Padronizar Headers]
+        E[Join: Base Operacional]
+        F[Join: Valor Unitário]
+        G[Cálculo: Qtd * Valor]
+        H[Agrupar por Base/Ano]
+    end
+
+    subgraph Output
+        I[(faturamentos_executados_consolidado.csv)]
+    end
+
+    A --> D
+    B --> E
+    C --> F
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
 ```
 
 ## 📄 Licença
