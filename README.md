@@ -107,11 +107,29 @@ Pipeline de integração para rastreamento de encerramentos técnicos e status d
     *   **Priorização**: Lógica para resolver duplicatas baseada na data de análise mais recente.
 *   **Output**: `data/processed/faturamentos_encerramento.csv`.
 
+### 5. Descontos de Segurança
+*Local: `/descontos_segurança`*
+*Script: `src/etl_descontos.py`*
+
+Pipeline projetado para consolidar dados de colaboradores de múltiplas bases (Bonfim, Jacobina, Juazeiro) e cruzá-los com um arquivo de descontos de segurança.
+*   **Input**:
+    *   Planilhas de colaboradores por base (`aux_colaboradores_*.xlsx`).
+    *   Arquivo de descontos (`aux_descontos.csv`).
+*   **Regras de Negócio**:
+    *   **Padronização**: Unifica as planilhas de colaboradores, padronizando colunas como `Gestor`.
+    *   **Correspondência em Cascata (Fuzzy Matching)**:
+        1.  Tenta uma correspondência aproximada de alta precisão (limiar de 96%) entre o nome do funcionário no arquivo de descontos e a base de colaboradores.
+        2.  Para falhas, tenta uma segunda correspondência, buscando o nome do funcionário apenas dentro da equipe do `Supervisor` listado.
+        3.  Como último recurso, repete a busca dentro da equipe do `Coordenador`.
+    *   **Logging Detalhado**: Registra correspondências bem-sucedidas e a lista final de colaboradores que não puderam ser encontrados em nenhuma das etapas.
+*   **Output**: `data/processed/descontos_consolidados.csv`.
+
 ## 📦 Como Executar
 
 ### Instalação das Dependências
+Para garantir que todas as bibliotecas necessárias estejam instaladas, execute o seguinte comando na raiz do projeto:
 ```bash
-pip install pandas requests openpyxl xlrd
+pip install -r requirements.txt
 ```
 
 ### Execução dos Pipelines
@@ -138,6 +156,11 @@ python etl_produtividade.py
 ```bash
 cd encerramento_tecnico/src
 python etl_encerramento.py
+```
+
+**Descontos de Segurança:**
+```bash
+python descontos_segurança/src/etl_descontos.py
 ```
 
 ---
