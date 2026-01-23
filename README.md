@@ -115,13 +115,15 @@ Pipeline projetado para consolidar dados de colaboradores de múltiplas bases (B
 *   **Input**:
     *   Planilhas de colaboradores por base (`aux_colaboradores_*.xlsx`).
     *   Arquivo de descontos (`aux_descontos.csv`).
+    *   Tabela de Gestores (`aux_gestores.xlsx`).
 *   **Regras de Negócio**:
-    *   **Padronização**: Unifica as planilhas de colaboradores, padronizando colunas como `Gestor`.
+    *   **Higienização Estrita**: Filtragem de linhas de "lixo" (cabeçalhos repetidos, totais, linhas vazias) nas planilhas de colaboradores.
+    *   **Padronização de Gestores**: Normalização dos nomes dos gestores utilizando a tabela auxiliar `aux_gestores`, com lógica de *Fuzzy Matching* para garantir consistência com o dashboard.
     *   **Correspondência em Cascata (Fuzzy Matching)**:
         1.  Tenta uma correspondência aproximada de alta precisão (limiar de 96%) entre o nome do funcionário no arquivo de descontos e a base de colaboradores.
         2.  Para falhas, tenta uma segunda correspondência, buscando o nome do funcionário apenas dentro da equipe do `Supervisor` listado.
         3.  Como último recurso, repete a busca dentro da equipe do `Coordenador`.
-    *   **Logging Detalhado**: Registra correspondências bem-sucedidas e a lista final de colaboradores que não puderam ser encontrados em nenhuma das etapas.
+    *   **Tratamento de Nulos**: Preenchimento inteligente de campos vazios como "Não Especificado" para evitar strings "Nan".
 *   **Output**: `data/processed/descontos_consolidados.csv`.
 
 ## 📦 Como Executar
@@ -256,6 +258,35 @@ graph TD
     F --> G
     G --> H
     H --> I
+```
+
+### 4. Descontos de Segurança
+```mermaid
+graph TD
+    subgraph Sources
+        A[Auxiliar: Descontos]
+        B[Planilhas Colaboradores]
+        C[Auxiliar: Gestores]
+    end
+
+    subgraph ETL[etl_descontos.py]
+        D[Unificar & Limpar Bases]
+        E[Fuzzy Match: Nome/Sup/Coord]
+        F[Padronizar Gestores]
+        G[Merge & Formatação Final]
+    end
+
+    subgraph Output
+        H[(descontos_consolidados.csv)]
+    end
+
+    A --> E
+    B --> D
+    D --> E
+    C --> F
+    E --> F
+    F --> G
+    G --> H
 ```
 
 ## 📄 Licença

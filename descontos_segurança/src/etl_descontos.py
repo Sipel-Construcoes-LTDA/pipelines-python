@@ -16,6 +16,7 @@ COLABORADORES_FILES = {
     'juazeiro': os.path.join(INPUT_PATH, 'aux_colaboradores_juazeiro.xlsx')
 }
 DESCONTOS_FILE = os.path.join(INPUT_PATH, 'aux_descontos.csv')
+GESTORES_FILE = os.path.join(INPUT_PATH, 'aux_gestores.xlsx')
 OUTPUT_FILE = os.path.join(OUTPUT_PATH, 'descontos_consolidados.csv')
 
 
@@ -29,7 +30,11 @@ def extract_and_clean_bonfim(file_path: str) -> pd.DataFrame:
         'Cód. ': 'Cód.'
     }, inplace=True)
     df['Base'] = 'Bonfim'
+    
+    # Limpeza de Cód. e linhas inválidas
     df = df.dropna(subset=['Cód.'])
+    df = df[~df['Cód.'].astype(str).isin(['VALOR', '0', 'Total', 'nan'])]
+    
     df['Setor'] = df['Setor'].str.split(' ').str[0]
     return df[['Cód.', 'Nome', 'Admissão', 'Cargo', 'Nascimento', 'STATUS', 'Setor', 'Gestor', 'Base']]
 
@@ -47,7 +52,11 @@ def extract_and_clean_jacobina(file_path: str) -> pd.DataFrame:
         'Cód. ': 'Cód.'
     }, inplace=True)
     df['Base'] = 'Jacobina'
+    
+    # Limpeza de Cód. e linhas inválidas
     df = df.dropna(subset=['Cód.'])
+    df = df[~df['Cód.'].astype(str).isin(['VALOR', '0', 'Total', 'nan'])]
+    
     df['Setor'] = df['Setor'].str.split(' ').str[0]
     # Remove colunas desnecessárias para manter a consistência
     df = df[['Cód.', 'Nome', 'STATUS', 'Admissão', 'Setor', 'Gestor', 'Base']]
@@ -63,7 +72,11 @@ def extract_and_clean_juazeiro(file_path: str) -> pd.DataFrame:
         'Código Sistema': 'Cód.'
     }, inplace=True)
     df['Base'] = 'Juazeiro'
+    
+    # Limpeza de Cód. e linhas inválidas
     df = df.dropna(subset=['Cód.'])
+    df = df[~df['Cód.'].astype(str).isin(['VALOR', '0', 'Total', 'nan'])]
+    
     return df[['Cód.', 'Setor', 'Gestor', 'STATUS', 'Nome', 'Nascimento', 'Admissão', 'Cargo', 'Base']]
 
 def unify_colaboradores() -> pd.DataFrame:
@@ -84,6 +97,65 @@ def unify_colaboradores() -> pd.DataFrame:
     df_colaboradores['Gestor'] = df_colaboradores['Gestor'].str.strip()
     
     return df_colaboradores
+
+def load_and_prep_gestores() -> pd.DataFrame:
+    """Carrega e prepara a tabela auxiliar de gestores."""
+    logging.info(f"Carregando tabela auxiliar de gestores: {GESTORES_FILE}")
+    try:
+        df = pd.read_excel(GESTORES_FILE)
+        # Limpa o nome do inspetor (remove CPF/Matrícula se houver, ex: 'NOME - 123...')
+        df['Clean_Name'] = df['INSPETORES'].astype(str).str.split(' -').str[0].str.strip().str.title()
+        # Garante que a coluna alvo está formatada
+        df['PRIMEIRO E ULTIMO NOME'] = df['PRIMEIRO E ULTIMO NOME'].astype(str).str.title().str.strip()
+        return df[['Clean_Name', 'PRIMEIRO E ULTIMO NOME']]
+    except Exception as e:
+        logging.error(f"Erro ao carregar aux_gestores: {e}")
+        return pd.DataFrame()
+
+def standardize_managers(df_processed: pd.DataFrame, df_gestores: pd.DataFrame) -> pd.DataFrame:
+    """Padroniza os nomes dos gestores usando a tabela auxiliar."""
+    if df_gestores.empty:
+        logging.warning("Tabela de gestores vazia. Pulando padronização.")
+        return df_processed
+
+    logging.info("Padronizando nomes dos gestores...")
+    
+    # Cria lista de nomes de referência
+    valid_managers = df_gestores['Clean_Name'].unique()
+    target_name_map = dict(zip(df_gestores['Clean_Name'], df_gestores['PRIMEIRO E ULTIMO NOME']))
+    
+    # Mapeamento de cache para evitar processamento repetido
+    manager_cache = {}
+    
+    def get_standard_manager(name):
+        if pd.isna(name) or name == "" or name == "nan":
+            return "Não Especificado"
+        
+        name_clean = str(name).strip().title()
+        
+        if name_clean in manager_cache:
+            return manager_cache[name_clean]
+            
+        # 1. Tentativa de match exato no nome limpo
+        if name_clean in valid_managers:
+            standard_name = target_name_map[name_clean]
+            manager_cache[name_clean] = standard_name
+            return standard_name
+            
+        # 2. Fuzzy match
+        best_match = fuzzy_process.extractOne(name_clean, valid_managers)
+        if best_match and best_match[1] >= 80: # Limiar de 80% para variações como "Alan Moura" -> "Alan Santos De Moura"
+            standard_name = target_name_map[best_match[0]]
+            manager_cache[name_clean] = standard_name
+            logging.info(f"[Gestor Match] '{name}' -> '{standard_name}' (Score: {best_match[1]})")
+            return standard_name
+            
+        # Fallback: Mantém o original se não encontrar match
+        manager_cache[name_clean] = name_clean
+        return name_clean
+
+    df_processed['Gestor'] = df_processed['Gestor'].apply(get_standard_manager)
+    return df_processed
 
 from thefuzz import process as fuzzy_process
 from collections import defaultdict
@@ -175,7 +247,8 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     df_merged = pd.merge(df_descontos, df_colaboradores, on='Nome', how='left')
 
     # ---- Transformações Finais ----
-    df_processed = df_merged.dropna(subset=['Cód.']).copy() # Usa Cód. como proxy de um merge bem sucedido
+    # Filtra registros que não tiveram correspondência (Cód. é nulo)
+    df_processed = df_merged.dropna(subset=['Cód.']).copy() 
     
     df_processed['Data Ocorrência'] = pd.to_datetime(df_processed['Data Ocorrência'], format='%d/%m/%Y', errors='coerce')
     df_processed = df_processed[df_processed['Data Ocorrência'] > '2024-12-31']
@@ -190,13 +263,18 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
 
     df_processed = df_processed[df_processed['Supervisor'] != "SUPERVISOR_TRM"]
     
-    cols_to_capitalize = ["Origem", "Tipo", "Grupo Item", "Item", "Gestor", "Setor"]
+    # --- Padronização de Gestores (NOVO) ---
+    df_gestores = load_and_prep_gestores()
+    df_processed = standardize_managers(df_processed, df_gestores)
+    
+    cols_to_capitalize = ["Origem", "Tipo", "Grupo Item", "Item", "Setor"] # Gestor removido daqui pois já foi tratado
     for col in cols_to_capitalize:
         if col in df_processed.columns:
-            df_processed[col] = df_processed[col].astype(str).str.title().str.strip()
+            # Preenche NA com string vazia antes de converter e capitalizar para evitar "Nan"
+            df_processed[col] = df_processed[col].fillna("").astype(str).str.title().str.strip()
 
-    df_processed['Grupo Item'] = df_processed['Grupo Item'].replace("", "Não Especificado")
-    df_processed['Item'] = df_processed['Item'].replace("", "Não Especificado")
+    df_processed['Grupo Item'] = df_processed['Grupo Item'].replace(["", "Nan"], "Não Especificado")
+    df_processed['Item'] = df_processed['Item'].replace(["", "Nan"], "Não Especificado")
     
     logging.info("Transformações finais aplicadas.")
     
