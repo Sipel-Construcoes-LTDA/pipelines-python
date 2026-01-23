@@ -154,7 +154,7 @@ def standardize_managers(df_processed: pd.DataFrame, df_gestores: pd.DataFrame) 
         manager_cache[name_clean] = name_clean
         return name_clean
 
-    df_processed['Gestor'] = df_processed['Gestor'].apply(get_standard_manager)
+    df_processed['Gestor_Padronizado'] = df_processed['Gestor'].apply(get_standard_manager)
     return df_processed
 
 from thefuzz import process as fuzzy_process
