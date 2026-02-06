@@ -3,3 +3,4 @@ produtividade_comercial/produtividade_tratada.csv
 faturamento_comercial/faturamentos_executados_consolidado.csv
 
 __pycache__
+.env
