@@ -205,9 +205,17 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     # 5. Normalização de Obra (Remoção de prefixo B-)
     if 'obra' in df.columns:
         logger.info("Normalizando coluna 'obra' (Limpando espaços e prefixo B-)...")
-        # Limpa espaços, remove prefixo e limpa espaços novamente para garantir
+        # Limpeza inicial
         df['obra'] = df['obra'].astype(str).str.strip().str.replace(r'^[Bb]-', '', regex=True).str.strip()
-        df.loc[df['obra'].str.lower() == 'nan', 'obra'] = ''
+        
+        # Conversão para numérico e remoção de inválidos
+        initial_rows = df.shape[0]
+        df['obra'] = pd.to_numeric(df['obra'], errors='coerce')
+        df.dropna(subset=['obra'], inplace=True)
+        
+        dropped_invalid = initial_rows - df.shape[0]
+        if dropped_invalid > 0:
+            logger.warning(f"Removidos {dropped_invalid} registros com 'obra' não numérica.")
 
     # 6. Padronização de StatusSolic
     if 'StatusSolic' in df.columns:
