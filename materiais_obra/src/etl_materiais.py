@@ -212,9 +212,9 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
 
     # 4. Tratamento da Coluna 'Obra'
     if 'obra' in df.columns:
-        logger.info("Normalizando coluna 'obra' (Removendo prefixo B-)...")
-        # Remove prefixo B- ou b- e espaços
-        df['obra'] = df['obra'].astype(str).str.replace(r'^[Bb]-', '', regex=True).str.strip()
+        logger.info("Normalizando coluna 'obra' (Limpando espaços e prefixo B-)...")
+        # Converte para string, remove espaços nas extremidades, remove prefixo B- (case insensitive) e limpa espaços novamente
+        df['obra'] = df['obra'].astype(str).str.strip().str.replace(r'^[Bb]-', '', regex=True).str.strip()
         df.loc[df['obra'].str.lower() == 'nan', 'obra'] = ''
 
     return df
