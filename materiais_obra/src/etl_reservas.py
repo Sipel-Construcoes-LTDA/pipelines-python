@@ -151,38 +151,42 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
 def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aplica regras de negócio e sanitização de valores.
+    NOTA: Assume que as colunas JÁ FORAM PADRONIZADAS pela função standardize_columns.
     """
     logger.info("Aplicando regras de negócio e sanitização...")
 
-    # 1. Unificação de IDSolic (Granularidade: PROJETO + TIPO_MOVIMENTACAO + Created)
-    group_cols = ['PROJETO', 'TIPO_MOVIMENTACAO', 'Created']
-    if set(group_cols).issubset(df.columns) and 'IDSolic' in df.columns:
-        logger.info(f"Unificando IDSolic baseado em: {group_cols}")
-        df['IDSolic'] = df.groupby(group_cols, dropna=False)['IDSolic'].transform('max')
+    # 1. Unificação de IDSolic (Granularidade: obra + TipoSolic + Created)
+    # Nomes atualizados pós-padronização
+    group_cols = ['obra', 'TipoSolic', 'Created']
+    if set(group_cols).issubset(df.columns) and 'IdSolic' in df.columns:
+        logger.info(f"Unificando IdSolic baseado em: {group_cols}")
+        df['IdSolic'] = df.groupby(group_cols, dropna=False)['IdSolic'].transform('max')
 
-    # 2. Filtro de Integridade: Remove registros sem IDSolic
-    if 'IDSolic' in df.columns:
+    # 2. Filtro de Integridade: Remove registros sem IdSolic
+    if 'IdSolic' in df.columns:
         initial_rows = df.shape[0]
-        df.dropna(subset=['IDSolic'], inplace=True)
+        df.dropna(subset=['IdSolic'], inplace=True)
         dropped_rows = initial_rows - df.shape[0]
         if dropped_rows > 0:
-            logger.info(f"Removidos {dropped_rows} registros sem 'IDSolic' válido.")
+            logger.info(f"Removidos {dropped_rows} registros sem 'IdSolic' válido.")
 
     # 2.1. Conversão de Quantidades (CRÍTICO: Evita concatenação de strings)
-    qty_cols = ['QUANTIDADE_SOLICITADA', 'QUANTIDADE_MOVIMENTADA']
+    qty_cols = ['QuantSolic', 'Quant_Confirmada']
     for col in qty_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # 3. Sanitização de NUMERO_RESERVA
-    if 'NUMERO_RESERVA' in df.columns:
-        logger.info("Sanitizando NUMERO_RESERVA: mantendo apenas valores numéricos...")
-        df['NUMERO_RESERVA'] = pd.to_numeric(df['NUMERO_RESERVA'], errors='coerce')
+    # 3. Sanitização de NumeroReserva
+    if 'NumeroReserva' in df.columns:
+        logger.info("Sanitizando NumeroReserva: mantendo apenas valores numéricos...")
+        df['NumeroReserva'] = pd.to_numeric(df['NumeroReserva'], errors='coerce')
 
     # 4. Normalização de Texto (Title Case)
     cols_to_normalize = [
-        'Title', 'Titulo', 'Descricao', 'Observacao', 'Status', 
-        'Solicitante', 'Responsavel', 'Obra', 'Local'
+        'titulo', 'Descricao', 'Observacao', 'StatusSolic', 
+        'Coleborador_solicitante', 'AgenteResponsavel', 'obra', 
+        'BaseOperacional', 'Pendencias', 'DescricaoPendencias', 
+        'isUrgente', 'IsDeleted'
     ]
     found_cols = [c for c in cols_to_normalize if c in df.columns]
     
@@ -199,15 +203,14 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[df['obra'].str.lower() == 'nan', 'obra'] = ''
 
     # 6. Padronização de StatusSolic
-    status_col = 'STATUS' if 'STATUS' in df.columns else ('StatusSolic' if 'StatusSolic' in df.columns else None)
-    if status_col:
-        logger.info(f"Padronizando status na coluna {status_col}...")
+    if 'StatusSolic' in df.columns:
+        logger.info("Padronizando status na coluna StatusSolic...")
         status_map = {
             'Confirmado': 'Movimentado',
             'Mov Parcial': 'Mov. Parcial',
             'Mov.Parcial': 'Mov. Parcial'
         }
-        df[status_col] = df[status_col].replace(status_map)
+        df['StatusSolic'] = df['StatusSolic'].replace(status_map)
 
     # 7. Remove colunas totalmente vazias
     initial_cols = df.shape[1]
@@ -238,7 +241,11 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         'QUANTIDADE_MOVIMENTADA': 'Quant_Confirmada',
         'IDSolic': 'IdSolic',
         'Titulo': 'titulo',
-        'DataMovimentacao': 'DataSaqMod'
+        'DataMovimentacao': 'DataSaqMod',
+        'TECNICO': 'Coleborador_solicitante',
+        'Urgente': 'isUrgente',
+        'OBSERVACAO_MAT': 'Observacao',
+        'Descri_x00e7__x00e3_oPendencias': 'DescricaoPendencias'
     }
     
     df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
@@ -370,8 +377,8 @@ def main():
         
         # 4. Transformação
         df_raw = clean_and_profile_data(raw_data)
-        df_treated = apply_business_rules(df_raw)
-        df_standard = standardize_columns(df_treated)
+        df_standard = standardize_columns(df_raw)
+        df_treated = apply_business_rules(df_standard)
         
         # 5. Carga Raw Reservas
         output_dir_raw = root_dir / "materiais_obra/data/raw"
