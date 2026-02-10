@@ -168,6 +168,12 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         if dropped_rows > 0:
             logger.info(f"Removidos {dropped_rows} registros sem 'IDSolic' válido.")
 
+    # 2.1. Conversão de Quantidades (CRÍTICO: Evita concatenação de strings)
+    qty_cols = ['QUANTIDADE_SOLICITADA', 'QUANTIDADE_MOVIMENTADA']
+    for col in qty_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
     # 3. Sanitização de NUMERO_RESERVA
     if 'NUMERO_RESERVA' in df.columns:
         logger.info("Sanitizando NUMERO_RESERVA: mantendo apenas valores numéricos...")
