@@ -118,6 +118,18 @@ def extract_list_items_paged(ctx: ClientContext, list_name: str, page_size: int 
         logger.error(f"Erro na extração: {e}")
         raise
 
+def clean_pendency_tags(text: Any) -> str:
+    """
+    Limpa e remove duplicatas de tags de pendências (ex: 'Outro; Outro' -> 'Outro').
+    """
+    if pd.isna(text) or str(text).lower() in ['nan', '<na>', 'none', '']:
+        return ""
+    
+    # Divide por ; ou , e limpa cada parte
+    parts = [p.strip().title() for p in str(text).replace(',', ';').split(';') if p.strip()]
+    # Remove duplicatas mantendo ordem alfabética
+    return "; ".join(sorted(list(set(parts))))
+
 def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     logger.info("Iniciando limpeza técnica...")
     if not raw_data:
@@ -129,23 +141,41 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     cols_to_drop = [c for c in df.columns if c.startswith('odata.') or c.startswith('__')] 
     system_cols = [
         'FileSystemObjectType', 'ServerRedirectedEmbedUri', 'ServerRedirectedEmbedUrl', 
-        'ContentTypeId', 'ComplianceAssetId', 'ID', 'Attachments',
+        'ContentTypeId', 'ComplianceAssetId', 'Attachments',
         'AssRespAlmoxarifado', 'AssRespSaque'
     ]
     cols_to_drop.extend([c for c in system_cols if c in df.columns])
     
     df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
     
-    # Converte datas
-    for col in ['Created', 'Modified']:
-        if col in df.columns:
-            df.loc[:, col] = pd.to_datetime(df[col], errors='coerce')
+    # Validação Crítica: A coluna 'Id' (ou 'ID') é obrigatória
+    id_col = 'Id' if 'Id' in df.columns else ('ID' if 'ID' in df.columns else None)
+    if id_col:
+        initial_rows = len(df)
+        # Remove nulos e strings vazias/nan
+        df[id_col] = df[id_col].astype(str).replace(['nan', 'NaN', 'None', ''], pd.NA)
+        df.dropna(subset=[id_col], inplace=True)
+        dropped_ids = initial_rows - len(df)
+        if dropped_ids > 0:
+            logger.warning(f"Removidos {dropped_ids} registros com '{id_col}' em branco.")
+    else:
+        logger.error("Coluna de Identificação (Id/ID) não encontrada no DataFrame!")
+    
+    # Converte datas de forma proativa
+    # Identifica colunas do SharePoint que são tipicamente datas ou contêm 'Data' ou 'Date' no nome
+    date_candidates = ['Created', 'Modified']
+    date_candidates.extend([col for col in df.columns if 'Data' in col or 'DATE' in col.upper()])
+    
+    found_dates = [c for c in set(date_candidates) if c in df.columns]
+    if found_dates:
+        logger.info(f"Convertendo colunas de data: {found_dates}")
+        for col in found_dates:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
 
-    df = df.copy().convert_dtypes()
+    # df = df.copy().convert_dtypes() # Removido para evitar NaT -> Int/Object inadequado
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
-    logger.info(f"Colunas: {list(df.columns)}")
     return df
 
 def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
@@ -191,12 +221,17 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
                 # Zera os valores inválidos
                 df.loc[outliers_mask, col] = 0
 
+    # 2.5 TRATAMENTO DE PENDÊNCIAS (DEDUP E LIMPEZA)
+    if 'Pendencias' in df.columns:
+        logger.info("Limpando e deduplicando tags de Pendencias...")
+        df['Pendencias'] = df['Pendencias'].apply(clean_pendency_tags)
+
     # 3. Normalização de Texto (Title Case)
     # Lista de colunas candidatas baseada na solicitação e nomes reais do SharePoint
     cols_to_normalize = [
         'Coleborador_solicitante', 'IsDeleted', 'BaseOperacional', 
         'Observacao', 'isUrgente', 'AgenteResponsavel', 
-        'Pendencias', 'DescricaoPendencias', 'Justificativa', 'Justificar'
+        'DescricaoPendencias', 'Justificativa', 'Justificar'
     ]
     
     # Filtra apenas as que existem no DataFrame
@@ -208,7 +243,7 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
             # Converte para string, aplica Title Case e remove espaços extras
             df[col] = df[col].astype(str).str.title().str.strip()
             # Tratamento para 'nan' string que pode surgir de conversão de nulls
-            df.loc[df[col].str.lower() == 'nan', col] = ''
+            df.loc[df[col].str.lower().isin(['nan', 'nat', 'none', '<na>', '']), col] = ''
 
     # 4. Tratamento da Coluna 'Obra'
     if 'obra' in df.columns:
@@ -221,12 +256,25 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         df['obra'] = pd.to_numeric(df['obra'], errors='coerce')
         df.dropna(subset=['obra'], inplace=True)
         
+        # Garante int64 para evitar .0 no CSV
+        df['obra'] = df['obra'].round().astype('Int64')
+        
         dropped_invalid = initial_rows - df.shape[0]
         if dropped_invalid > 0:
             logger.warning(f"Removidos {dropped_invalid} registros com 'obra' não numérica.")
         
         # Garante que não temos zeros ou vazios estatísticos se necessário (opcional)
         df = df[df['obra'] != 0].copy()
+
+    # 5. Conversão de Tipos Inteiros Adicionais
+    # Lista de colunas que devem ser inteiras se existirem
+    int_cols = ['CodMaterial', 'TipoSolic', 'CENTRO_MATERIAL', 'AuthorId', 'EditorId', 'OData__UIVersionString']
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').round().astype('Int64')
+
+    # 6. Identificação do Processo
+    df['Processo'] = 'Obras'
 
     return df
 
@@ -267,6 +315,16 @@ def create_solicitations_summary(df: pd.DataFrame) -> pd.DataFrame:
         # Regra 3: Fallback para estados mistos (ex: Pendente + Reservado)
         return 'Em Análise/Misto'
 
+    # 2.5 Lógica de Agregação de Pendências
+    def agg_pendencias(series):
+        all_p = "; ".join([str(s) for s in series if pd.notna(s) and str(s).strip()])
+        return clean_pendency_tags(all_p)
+
+    def agg_descriptions(series):
+        # Une as descrições únicas, separando por " | "
+        descs = [str(s).strip() for s in series if pd.notna(s) and str(s).strip() and str(s).lower() not in ['nan', 'none', '<na>', '']]
+        return " | ".join(sorted(list(set(descs))))
+
     # 3. Agrupamento
     
     # Colunas de Metadados (Texto/Categorias) -> 'first'
@@ -274,7 +332,7 @@ def create_solicitations_summary(df: pd.DataFrame) -> pd.DataFrame:
     metadata_cols = [
         'Coleborador_solicitante', 'obra', 'BaseOperacional', 
         'isUrgente', 'AgenteResponsavel',
-        'EmailSolic', 'TipoSolic', 'titulo', 'Titulo'
+        'EmailSolic', 'TipoSolic', 'titulo', 'Titulo', 'Processo'
     ]
     
     # Colunas de Data -> 'min' (menor data)
@@ -282,7 +340,9 @@ def create_solicitations_summary(df: pd.DataFrame) -> pd.DataFrame:
     date_cols = [col for col in df_filtered.columns if 'Data' in col or col in ['Created', 'Modified']]
 
     agg_rules = {
-        'StatusSolic': resolve_status
+        'StatusSolic': resolve_status,
+        'Pendencias': agg_pendencias,
+        'DescricaoPendencias': agg_descriptions
     }
     
     # Adiciona soma para colunas de quantidade se existirem

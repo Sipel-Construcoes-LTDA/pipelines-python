@@ -118,6 +118,18 @@ def extract_list_items_paged(ctx: ClientContext, list_name: str, page_size: int 
         logger.error(f"Erro na extração: {e}")
         raise
 
+def clean_pendency_tags(text: Any) -> str:
+    """
+    Limpa e remove duplicatas de tags de pendências (ex: 'Outro; Outro' -> 'Outro').
+    """
+    if pd.isna(text) or str(text).lower() in ['nan', '<na>', 'none', '']:
+        return ""
+    
+    # Divide por ; ou , e limpa cada parte
+    parts = [p.strip().title() for p in str(text).replace(',', ';').split(';') if p.strip()]
+    # Remove duplicatas mantendo ordem alfabética
+    return "; ".join(sorted(list(set(parts))))
+
 def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     logger.info("Iniciando limpeza técnica...")
     if not raw_data:
@@ -129,23 +141,39 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     cols_to_drop = [c for c in df.columns if c.startswith('odata.') or c.startswith('__')] 
     system_cols = [
         'FileSystemObjectType', 'ServerRedirectedEmbedUri', 'ServerRedirectedEmbedUrl', 
-        'ContentTypeId', 'ComplianceAssetId', 'ID', 'Attachments',
+        'ContentTypeId', 'ComplianceAssetId', 'Attachments',
         'AssRespAlmoxarifado', 'AssRespSaque', 'GUID', 'OData__ColorTag'
     ]
     cols_to_drop.extend([c for c in system_cols if c in df.columns])
     
     df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
     
-    # Converte datas
-    for col in ['Created', 'Modified']:
-        if col in df.columns:
-            df.loc[:, col] = pd.to_datetime(df[col], errors='coerce')
+    # Validação Crítica: A coluna 'Id' (ou 'ID') é obrigatória
+    id_col = 'Id' if 'Id' in df.columns else ('ID' if 'ID' in df.columns else None)
+    if id_col:
+        initial_rows = len(df)
+        df[id_col] = df[id_col].astype(str).replace(['nan', 'NaN', 'None', ''], pd.NA)
+        df.dropna(subset=[id_col], inplace=True)
+        dropped_ids = initial_rows - len(df)
+        if dropped_ids > 0:
+            logger.warning(f"Removidos {dropped_ids} registros com '{id_col}' em branco.")
+    else:
+        logger.error("Coluna de Identificação (Id/ID) não encontrada no DataFrame!")
 
-    df = df.copy().convert_dtypes()
+    # Converte datas de forma proativa
+    date_candidates = ['Created', 'Modified']
+    date_candidates.extend([col for col in df.columns if 'Data' in col or 'DATE' in col.upper()])
+    
+    found_dates = [c for c in set(date_candidates) if c in df.columns]
+    if found_dates:
+        logger.info(f"Convertendo colunas de data: {found_dates}")
+        for col in found_dates:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+
+    # df = df.copy().convert_dtypes() # Removido para evitar NaT -> Int/Object inadequado
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
-    logger.info(f"Colunas: {list(df.columns)}")
     return df
 
 def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
@@ -187,11 +215,16 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         logger.info("Sanitizando NumeroReserva: mantendo apenas valores numéricos...")
         df['NumeroReserva'] = pd.to_numeric(df['NumeroReserva'], errors='coerce')
 
+    # 3.5 TRATAMENTO DE PENDÊNCIAS (DEDUP E LIMPEZA)
+    if 'Pendencias' in df.columns:
+        logger.info("Limpando e deduplicando tags de Pendencias...")
+        df['Pendencias'] = df['Pendencias'].apply(clean_pendency_tags)
+
     # 4. Normalização de Texto (Title Case)
     cols_to_normalize = [
         'titulo', 'Descricao', 'Observacao', 'StatusSolic', 
         'Coleborador_solicitante', 'AgenteResponsavel', 'obra', 
-        'BaseOperacional', 'Pendencias', 'DescricaoPendencias', 
+        'BaseOperacional', 'DescricaoPendencias', 
         'isUrgente', 'IsDeleted'
     ]
     found_cols = [c for c in cols_to_normalize if c in df.columns]
@@ -200,7 +233,7 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"Normalizando texto (Title Case) nas colunas: {found_cols}")
         for col in found_cols:
             df[col] = df[col].astype(str).str.title().str.strip()
-            df.loc[df[col].str.lower() == 'nan', col] = ''
+            df.loc[df[col].str.lower().isin(['nan', 'nat', 'none', '<na>', '']), col] = ''
 
     # 5. Normalização de Obra (Remoção de prefixo B-)
     if 'obra' in df.columns:
@@ -212,6 +245,9 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         initial_rows = df.shape[0]
         df['obra'] = pd.to_numeric(df['obra'], errors='coerce')
         df.dropna(subset=['obra'], inplace=True)
+        
+        # Garante int64 para evitar .0 no CSV
+        df['obra'] = df['obra'].round().astype('Int64')
         
         dropped_invalid = initial_rows - df.shape[0]
         if dropped_invalid > 0:
@@ -233,6 +269,15 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     dropped = initial_cols - df.shape[1]
     if dropped > 0:
         logger.info(f"Removidas {dropped} colunas que estavam 100% vazias.")
+
+    # 8. Conversão de Tipos Inteiros Adicionais
+    int_cols = ['NumeroReserva', 'CodMaterial', 'TipoSolic', 'CENTRO_MATERIAL', 'idCoordenador', 'idSupervisor']
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').round().astype('Int64')
+
+    # 9. Identificação do Processo
+    df['Processo'] = 'Encerramento'
 
     return df
 
@@ -283,14 +328,24 @@ def create_reservas_summary(df: pd.DataFrame) -> pd.DataFrame:
             return list(statuses)[0]
         return 'Misto/Em Análise'
 
+    def agg_pendencias(series):
+        all_p = "; ".join([str(s) for s in series if pd.notna(s) and str(s).strip()])
+        return clean_pendency_tags(all_p)
+
+    def agg_descriptions(series):
+        descs = [str(s).strip() for s in series if pd.notna(s) and str(s).strip() and str(s).lower() not in ['nan', 'none', '<na>', '']]
+        return " | ".join(sorted(list(set(descs))))
+
     agg_rules = {
         'StatusSolic': resolve_status,
         'QuantSolic': 'sum',
-        'Quant_Confirmada': 'sum'
+        'Quant_Confirmada': 'sum',
+        'Pendencias': agg_pendencias,
+        'DescricaoPendencias': agg_descriptions
     }
     
     # Metadados: pega o primeiro valor
-    metadata_cols = ['obra', 'BaseOperacional', 'TipoSolic', 'titulo', 'DataSolic', 'DataCriacaoReserva']
+    metadata_cols = ['obra', 'BaseOperacional', 'TipoSolic', 'titulo', 'DataSolic', 'DataCriacaoReserva', 'Processo']
     for col in metadata_cols:
         if col in df.columns:
             agg_rules[col] = 'first'
@@ -316,6 +371,7 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         logger.warning(f"Arquivo de materiais não encontrado: {materiais_path}")
         return pd.DataFrame()
 
+    # Lê o CSV e tenta converter colunas de data conhecidas
     df_mat = pd.read_csv(materiais_path, sep=';', encoding='utf-8-sig')
     
     # Padronização de nomes em Materiais para facilitar o merge
@@ -328,6 +384,12 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
 
     # Concatena as duas tabelas
     df_all = pd.concat([df_mat, df_reservas], ignore_index=True)
+
+    # --- CORREÇÃO DE COLUNAS DE DATA (CRÍTICO) ---
+    # Garante que todas as colunas de data sejam datetime após a concatenação
+    date_cols = [c for c in df_all.columns if 'Data' in c or c in ['Created', 'Modified']]
+    for col in date_cols:
+        df_all[col] = pd.to_datetime(df_all[col], errors='coerce')
 
     # Garantia de que QuantSolic é numérica e válida após o merge
     if 'QuantSolic' in df_all.columns:
@@ -351,6 +413,12 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
             df_all[new_col] = df_all[new_col].fillna(df_all[old_col])
             df_all.drop(columns=[old_col], inplace=True)
 
+    # Garante Int64 para colunas de ID antes do agrupamento
+    int_cols_final = ['obra', 'CodMaterial', 'TipoSolic', 'CENTRO_MATERIAL', 'NumeroReserva', 'idCoordenador', 'idSupervisor', 'AuthorId', 'EditorId', 'OData__UIVersionString']
+    for col in int_cols_final:
+        if col in df_all.columns:
+            df_all[col] = pd.to_numeric(df_all[col], errors='coerce').astype('Int64')
+
     # Agrupamento Final por IdSolic
     logger.info("Agrupando base consolidada geral...")
     
@@ -363,15 +431,25 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         if 'Movimentado' in statuses: return 'Movimentado'
         return list(statuses)[0] if statuses else 'Pendente'
 
+    def agg_pendencias(series):
+        all_p = "; ".join([str(s) for s in series if pd.notna(s) and str(s).strip()])
+        return clean_pendency_tags(all_p)
+
+    def agg_descriptions(series):
+        descs = [str(s).strip() for s in series if pd.notna(s) and str(s).strip() and str(s).lower() not in ['nan', 'none', '<na>', '']]
+        return " | ".join(sorted(list(set(descs))))
+
     agg_rules = {
         'QuantSolic': 'sum',
         'Quant_Confirmada': 'sum',
-        'StatusSolic': resolve_status_geral
+        'StatusSolic': resolve_status_geral,
+        'Pendencias': agg_pendencias,
+        'DescricaoPendencias': agg_descriptions
     }
 
     # Metadados e Datas
     for col in df_all.columns:
-        if col in ['IdSolic', 'QuantSolic', 'Quant_Confirmada', 'StatusSolic']: continue
+        if col in ['IdSolic', 'QuantSolic', 'Quant_Confirmada', 'StatusSolic', 'Pendencias', 'DescricaoPendencias']: continue
         if df_all[col].dtype == 'object' or df_all[col].dtype == 'string':
             agg_rules[col] = 'first'
         else:
