@@ -171,10 +171,16 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
             logger.info(f"Removidos {dropped_rows} registros sem 'IdSolic' válido.")
 
     # 2.1. Conversão de Quantidades (CRÍTICO: Evita concatenação de strings)
-    qty_cols = ['QuantSolic', 'Quant_Confirmada']
-    for col in qty_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    if 'QuantSolic' in df.columns:
+        initial_rows = df.shape[0]
+        df['QuantSolic'] = pd.to_numeric(df['QuantSolic'], errors='coerce')
+        df.dropna(subset=['QuantSolic'], inplace=True)
+        dropped_invalid = initial_rows - df.shape[0]
+        if dropped_invalid > 0:
+            logger.warning(f"Removidos {dropped_invalid} registros com 'QuantSolic' não numérico.")
+
+    if 'Quant_Confirmada' in df.columns:
+        df['Quant_Confirmada'] = pd.to_numeric(df['Quant_Confirmada'], errors='coerce').fillna(0)
 
     # 3. Sanitização de NumeroReserva
     if 'NumeroReserva' in df.columns:
@@ -314,6 +320,11 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
     # Concatena as duas tabelas
     df_all = pd.concat([df_mat, df_reservas], ignore_index=True)
 
+    # Garantia de que QuantSolic é numérica e válida após o merge
+    if 'QuantSolic' in df_all.columns:
+        df_all['QuantSolic'] = pd.to_numeric(df_all['QuantSolic'], errors='coerce')
+        df_all.dropna(subset=['QuantSolic'], inplace=True)
+
     # --- CORREÇÃO DE COLUNAS DUPLICADAS/OVERLAP ---
     overlap_mapping = {
         'Quant_x002e_Confirmada': 'Quant_Confirmada',
@@ -385,19 +396,19 @@ def main():
         output_dir_raw.mkdir(parents=True, exist_ok=True)
         output_path_raw = output_dir_raw / "tabela_reservas_raw.csv"
         
-        if not df_standard.empty:
-            df_standard.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig')
+        if not df_treated.empty:
+            df_treated.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig')
             logger.info(f"Arquivo Raw Reservas salvo: {output_path_raw}")
 
             # 6. Agrupamento Reservas
-            df_grouped_res = create_reservas_summary(df_standard)
+            df_grouped_res = create_reservas_summary(df_treated)
             output_dir_proc = root_dir / "materiais_obra/data/processed"
             output_dir_proc.mkdir(parents=True, exist_ok=True)
             df_grouped_res.to_csv(output_dir_proc / "tabela_reservas_agrupada.csv", index=False, sep=';', encoding='utf-8-sig')
             logger.info("Tabela de reservas agrupada salva.")
 
             # 7. Consolidação Geral (Materiais + Reservas)
-            df_consolidated = consolidate_all_data(df_standard, root_dir)
+            df_consolidated = consolidate_all_data(df_treated, root_dir)
             if not df_consolidated.empty:
                 df_consolidated.to_csv(output_dir_proc / "solicitacoes_consolidadas_geral.csv", index=False, sep=';', encoding='utf-8-sig')
                 logger.info("Consolidado geral (Materiais + Reservas) salvo.")

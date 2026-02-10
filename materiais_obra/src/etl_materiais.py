@@ -163,13 +163,20 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
 
     # 2. Tratamento de Quantidades (Outliers e Tipagem)
     # QuantSolic: Solicitada | Quant_x002e_Confirmada: Confirmada
+    if 'QuantSolic' in df.columns:
+        initial_rows = df.shape[0]
+        df['QuantSolic'] = pd.to_numeric(df['QuantSolic'], errors='coerce')
+        df.dropna(subset=['QuantSolic'], inplace=True)
+        dropped_invalid = initial_rows - df.shape[0]
+        if dropped_invalid > 0:
+            logger.warning(f"Removidos {dropped_invalid} registros com 'QuantSolic' não numérico.")
+
+    if 'Quant_x002e_Confirmada' in df.columns:
+        df['Quant_x002e_Confirmada'] = pd.to_numeric(df['Quant_x002e_Confirmada'], errors='coerce').fillna(0)
+
     qty_cols = ['QuantSolic', 'Quant_x002e_Confirmada']
-    
     for col in qty_cols:
         if col in df.columns:
-            # Converte para numérico (erros viram NaN) e preenche NaN com 0
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
             # Regra: Quantidade > 10.000 é erro de input
             outliers_mask = df[col] > 10000
             qtd_outliers = outliers_mask.sum()
