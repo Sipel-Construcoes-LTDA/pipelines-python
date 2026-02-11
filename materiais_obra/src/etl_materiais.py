@@ -170,9 +170,7 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     if found_dates:
         logger.info(f"Convertendo colunas de data: {found_dates}")
         for col in found_dates:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-
-    # df = df.copy().convert_dtypes() # Removido para evitar NaT -> Int/Object inadequado
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.normalize()
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
@@ -394,7 +392,7 @@ def main():
         output_dir_raw.mkdir(parents=True, exist_ok=True)
         output_path_raw = output_dir_raw / "materiais_obra_raw.csv"
         
-        df_final.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig')
+        df_final.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
         logger.info(f"Arquivo Raw salvo: {output_path_raw}")
 
         # 6. Agrupamento (Tabela Consolidada)
@@ -405,7 +403,7 @@ def main():
             output_dir_processed.mkdir(parents=True, exist_ok=True)
             output_path_processed = output_dir_processed / "solicitacoes_agrupadas.csv"
             
-            df_grouped.to_csv(output_path_processed, index=False, sep=';', encoding='utf-8-sig')
+            df_grouped.to_csv(output_path_processed, index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
             logger.info(f"Arquivo Agrupado salvo: {output_path_processed}")
         
     except KeyboardInterrupt:

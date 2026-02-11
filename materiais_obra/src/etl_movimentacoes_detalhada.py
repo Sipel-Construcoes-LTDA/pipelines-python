@@ -70,7 +70,8 @@ def enforce_strict_types(df: pd.DataFrame) -> pd.DataFrame:
     for col in cols_date:
         if col in df.columns:
             # Errors='coerce' transforma falhas em NaT (Not a Time)
-            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
+            # Usamos utc=True e tz_localize(None) para consistência com os outros scripts
+            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=False, utc=True).dt.tz_localize(None).dt.normalize()
 
     # Strings
     for col in cols_str:
@@ -168,7 +169,7 @@ def main():
 
         # Salvamento
         output_path = processed_dir / "fato_movimentacoes_itens.csv"
-        df_final.to_csv(output_path, sep=';', index=False, encoding='utf-8-sig', date_format='%Y-%m-%d %H:%M:%S')
+        df_final.to_csv(output_path, sep=';', index=False, encoding='utf-8-sig', date_format='%Y-%m-%d')
         
         logger.info("=== SUCESSO ===")
         logger.info(f"Arquivo gerado: {output_path}")

@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 from dotenv import load_dotenv
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.runtime.auth.user_credential import UserCredential
@@ -142,7 +143,7 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     system_cols = [
         'FileSystemObjectType', 'ServerRedirectedEmbedUri', 'ServerRedirectedEmbedUrl', 
         'ContentTypeId', 'ComplianceAssetId', 'Attachments',
-        'AssRespAlmoxarifado', 'AssRespSaque', 'GUID', 'OData__ColorTag'
+        'AssRespAlmoxarifado', 'AssRespSaque', 'GUID', 'OData__ColorTag', 'OData__UIVersionString'
     ]
     cols_to_drop.extend([c for c in system_cols if c in df.columns])
     
@@ -160,17 +161,15 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     else:
         logger.error("Coluna de Identificação (Id/ID) não encontrada no DataFrame!")
 
-    # Converte datas de forma proativa
+    # Converte datas de forma proativa (Ignorando colunas técnicas já removidas)
     date_candidates = ['Created', 'Modified']
-    date_candidates.extend([col for col in df.columns if 'Data' in col or 'DATE' in col.upper()])
+    date_candidates.extend([col for col in df.columns if ('Data' in col or 'DATE' in col.upper()) and col not in system_cols])
     
     found_dates = [c for c in set(date_candidates) if c in df.columns]
     if found_dates:
         logger.info(f"Convertendo colunas de data: {found_dates}")
         for col in found_dates:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-
-    # df = df.copy().convert_dtypes() # Removido para evitar NaT -> Int/Object inadequado
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.normalize()
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
@@ -188,7 +187,17 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     group_cols = ['obra', 'TipoSolic', 'Created']
     if set(group_cols).issubset(df.columns) and 'IdSolic' in df.columns:
         logger.info(f"Unificando IdSolic baseado em: {group_cols}")
-        df['IdSolic'] = df.groupby(group_cols, dropna=False)['IdSolic'].transform('max')
+        # Converte para string de forma segura, mantendo NaN como real NaN
+        df['IdSolic'] = df['IdSolic'].astype(str).replace(['nan', 'NaN', 'None', '<NA>', ''], np.nan)
+        
+        # Cria um mapeamento do IdSolic mais relevante por grupo (o primeiro valor não nulo encontrado)
+        # Ordenamos para garantir que o IdSolic preenchido venha primeiro
+        ids_map = df.sort_values('IdSolic').groupby(group_cols, dropna=False)['IdSolic'].first()
+        
+        # Mapeia de volta para o dataframe original
+        df = df.set_index(group_cols)
+        df['IdSolic'] = df['IdSolic'].fillna(ids_map)
+        df = df.reset_index()
 
     # 2. Filtro de Integridade: Remove registros sem IdSolic
     if 'IdSolic' in df.columns:
@@ -372,7 +381,7 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         return pd.DataFrame()
 
     # Lê o CSV e tenta converter colunas de data conhecidas
-    df_mat = pd.read_csv(materiais_path, sep=';', encoding='utf-8-sig')
+    df_mat = pd.read_csv(materiais_path, sep=';', encoding='utf-8-sig', low_memory=False)
     
     # Padronização de nomes em Materiais para facilitar o merge
     mat_mapping = {
@@ -389,7 +398,9 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
     # Garante que todas as colunas de data sejam datetime após a concatenação
     date_cols = [c for c in df_all.columns if 'Data' in c or c in ['Created', 'Modified']]
     for col in date_cols:
-        df_all[col] = pd.to_datetime(df_all[col], errors='coerce')
+        # Usamos utc=True para lidar com mixed offsets do SharePoint/Pandas 2.0+
+        # E convertemos para tz-naive (removendo o UTC) para consistência no CSV
+        df_all[col] = pd.to_datetime(df_all[col], errors='coerce', utc=True).dt.tz_localize(None).dt.normalize()
 
     # Garantia de que QuantSolic é numérica e válida após o merge
     if 'QuantSolic' in df_all.columns:
@@ -447,13 +458,20 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         'DescricaoPendencias': agg_descriptions
     }
 
-    # Metadados e Datas
+    # Metadados e Datas: Define regras seguras para as demais colunas
     for col in df_all.columns:
-        if col in ['IdSolic', 'QuantSolic', 'Quant_Confirmada', 'StatusSolic', 'Pendencias', 'DescricaoPendencias']: continue
-        if df_all[col].dtype == 'object' or df_all[col].dtype == 'string':
-            agg_rules[col] = 'first'
+        if col in agg_rules or col == 'IdSolic':
+            continue
+            
+        # Para datas, usamos 'max' (última atualização)
+        if 'Data' in col or col in ['Created', 'Modified']:
+            agg_rules[col] = 'max'
+        # Para números (obra, códigos, etc), usamos 'max' ou 'first' - 'first' é mais seguro contra erros de tipo
+        elif pd.api.types.is_numeric_dtype(df_all[col]):
+            agg_rules[col] = 'max'
+        # Para todo o resto (strings, objetos), usamos 'first'
         else:
-            agg_rules[col] = 'max' # Para datas e números
+            agg_rules[col] = 'first'
 
     df_final = df_all.groupby('IdSolic', as_index=False).agg(agg_rules)
     
@@ -484,20 +502,20 @@ def main():
         output_path_raw = output_dir_raw / "tabela_reservas_raw.csv"
         
         if not df_treated.empty:
-            df_treated.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig')
+            df_treated.to_csv(output_path_raw, index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
             logger.info(f"Arquivo Raw Reservas salvo: {output_path_raw}")
 
             # 6. Agrupamento Reservas
             df_grouped_res = create_reservas_summary(df_treated)
             output_dir_proc = root_dir / "materiais_obra/data/processed"
             output_dir_proc.mkdir(parents=True, exist_ok=True)
-            df_grouped_res.to_csv(output_dir_proc / "tabela_reservas_agrupada.csv", index=False, sep=';', encoding='utf-8-sig')
+            df_grouped_res.to_csv(output_dir_proc / "tabela_reservas_agrupada.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
             logger.info("Tabela de reservas agrupada salva.")
 
             # 7. Consolidação Geral (Materiais + Reservas)
             df_consolidated = consolidate_all_data(df_treated, root_dir)
             if not df_consolidated.empty:
-                df_consolidated.to_csv(output_dir_proc / "solicitacoes_consolidadas_geral.csv", index=False, sep=';', encoding='utf-8-sig')
+                df_consolidated.to_csv(output_dir_proc / "solicitacoes_consolidadas_geral.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
                 logger.info("Consolidado geral (Materiais + Reservas) salvo.")
         else:
             logger.warning("DataFrame vazio. Nenhum arquivo salvo.")
