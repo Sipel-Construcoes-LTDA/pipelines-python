@@ -36,7 +36,7 @@ def enforce_strict_types(df: pd.DataFrame) -> pd.DataFrame:
     # Datas (Datetime)
     cols_date = [
         "DataEstorno", "DataSolic", "DataCriacaoReserva", "Modified", 
-        "DataPendencia", "DataRegularisado", "Created", "DataSolicMod", 
+        "DataPendencia", "DataRegularizacao", "Created", "DataSolicMod", 
         "DataSolicPrev", "DATA_CRIACAO", "DataSaqMod"
     ]
     
@@ -114,9 +114,14 @@ def main():
         # O Power BI faz um Combine, então os nomes precisam bater
         mapping_mat = {
             'Quant_x002e_Confirmada': 'Quant_Confirmada',
-            # Adicione outros mapeamentos se necessário para alinhar com Reservas
+            'DataRegularisado': 'DataRegularizacao'
         }
         df_mat = df_mat.rename(columns=mapping_mat)
+        
+        mapping_res = {
+            'DataRegularisado': 'DataRegularizacao'
+        }
+        df_res = df_res.rename(columns=mapping_res)
 
         logger.info(f"Materiais: {df_mat.shape}, Reservas: {df_res.shape}")
 
@@ -150,26 +155,63 @@ def main():
         # Aplica a Tipagem Rigorosa
         df_final = enforce_strict_types(df_final)
 
-        # Remove linhas totalmente vazias (Equivalente ao Table.SelectRows do Power BI)
-        # Verifica se todas as colunas (exceto index) são nulas/vazias
-        # Mas como strings viraram "", verificamos se não é tudo "" ou NaT ou NaN
-        # Uma abordagem prática: se IdSolic, obra e CodMaterial forem nulos/vazios, remove.
+        # --- TRATAMENTOS POWER QUERY (MIGRATION) ---
+        logger.info("Aplicando transformações finais (Power Query Migration)...")
+
+        # 1. Filtro de IDs nulos/vazios
+        if 'Id' in df_final.columns:
+            df_final = df_final[df_final['Id'].notna()].copy()
+
+        # 2. Padronização de StatusSolic
+        if 'StatusSolic' in df_final.columns:
+            status_map = {
+                'Confirmado': 'Movimentado',
+                'Reservado': 'Pendente',
+                'Deletado': 'Rejeitado',
+                'Estornado': 'Rejeitado'
+            }
+            df_final['StatusSolic'] = df_final['StatusSolic'].replace(status_map)
+
+        # 3. Tratamento da coluna 'Justificar'
+        if 'Justificar' in df_final.columns:
+            df_final['Justificar'] = df_final['Justificar'].fillna('Comum').replace({'': 'Comum', 'Normal': 'Comum'})
+
+        # 4. Formatação de 'titulo' (Proper Case)
+        if 'titulo' in df_final.columns:
+            df_final['titulo'] = df_final['titulo'].astype(str).str.title().str.strip()
+
+        # 5. Remoção de Colunas (Conforme M Code)
+        cols_to_drop = [
+            'MotivoRejSolic', 'EmailSolic', 'IsAvulso', 'LatitudeSolic', 'LongetudeSolic',
+            'Observacao', 'isUrgente', 'UnidadeMedida', 'ProjetoFilho', 'Separacao',
+            'AuthorId', 'EditorId', 'MOTIVO_EXCLUSAO', 'AVALIACAO_MATERIAL', 
+            'CENTRO_MATERIAL', 'RECEBEDOR', 'SUPR_MATR', 'GUID'
+        ]
+        df_final.drop(columns=[c for c in cols_to_drop if c in df_final.columns], inplace=True)
+
+        # 6. Limpeza de Linhas em Branco (Rigorosa)
+        # Se IdSolic, obra e CodMaterial forem nulos/vazios, remove.
         subset_validation = ['IdSolic', 'obra', 'CodMaterial']
-        # Filtra apenas colunas que existem
         subset_validation = [c for c in subset_validation if c in df_final.columns]
         
         if subset_validation:
             initial_rows = len(df_final)
-            # Converte temporariamente para validar vazio
             mask = df_final[subset_validation].replace('', np.nan).isna().all(axis=1)
             df_final = df_final[~mask]
             dropped = initial_rows - len(df_final)
             if dropped > 0:
                 logger.info(f"Removidas {dropped} linhas sem identificadores principais.")
 
-        # Salvamento
+        # --- SANITIZAÇÃO FINAL DE STRINGS (CRÍTICO: ANTI-SHIFTING) ---
+        logger.info("Sanitizando campos de texto (Removendo ';' e quebras de linha)...")
+        text_cols = df_final.select_dtypes(include=['object']).columns
+        for col in text_cols:
+            df_final[col] = df_final[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
+            df_final.loc[df_final[col].str.lower().isin(['nan', 'none', 'nat', '']), col] = ''
+
+        # Salvamento com vírgula decimal
         output_path = processed_dir / "fato_movimentacoes_itens.csv"
-        df_final.to_csv(output_path, sep=';', index=False, encoding='utf-8-sig', date_format='%Y-%m-%d')
+        df_final.to_csv(output_path, sep=';', index=False, encoding='utf-8-sig', date_format='%Y-%m-%d', decimal=',')
         
         logger.info("=== SUCESSO ===")
         logger.info(f"Arquivo gerado: {output_path}")

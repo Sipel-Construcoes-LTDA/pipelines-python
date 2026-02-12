@@ -128,8 +128,8 @@ def clean_pendency_tags(text: Any) -> str:
     
     # Divide por ; ou , e limpa cada parte
     parts = [p.strip().title() for p in str(text).replace(',', ';').split(';') if p.strip()]
-    # Remove duplicatas mantendo ordem alfabética
-    return "; ".join(sorted(list(set(parts))))
+    # Remove duplicatas mantendo ordem alfabética - USANDO VÍRGULA para não quebrar o CSV
+    return ", ".join(sorted(list(set(parts))))
 
 def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     logger.info("Iniciando limpeza técnica...")
@@ -170,6 +170,10 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
         logger.info(f"Convertendo colunas de data: {found_dates}")
         for col in found_dates:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.normalize()
+
+    # Renomeia DataRegularisado para DataRegularizacao se existir
+    if 'DataRegularisado' in df.columns:
+        df.rename(columns={'DataRegularisado': 'DataRegularizacao'}, inplace=True)
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
@@ -463,18 +467,85 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         if col in agg_rules or col == 'IdSolic':
             continue
             
-        # Para datas, usamos 'max' (última atualização)
+        # Para datas (incluindo DataCriacaoReserva), usamos 'max' (última atualização)
         if 'Data' in col or col in ['Created', 'Modified']:
             agg_rules[col] = 'max'
-        # Para números (obra, códigos, etc), usamos 'max' ou 'first' - 'first' é mais seguro contra erros de tipo
+        # Para números (obra, códigos, etc), usamos 'max' ou 'first'
         elif pd.api.types.is_numeric_dtype(df_all[col]):
             agg_rules[col] = 'max'
         # Para todo o resto (strings, objetos), usamos 'first'
         else:
             agg_rules[col] = 'first'
 
+    # Garante que colunas de data críticas usem 'max' se existirem
+    critical_date_cols = ['DataCriacaoReserva', 'DataSaqMod', 'DataPendencia', 'DataRegularizacao']
+    for col in critical_date_cols:
+        if col in df_all.columns:
+            agg_rules[col] = 'max'
+
     df_final = df_all.groupby('IdSolic', as_index=False).agg(agg_rules)
     
+    # --- TRATAMENTOS FINAIS (REPLICANDO POWER QUERY DO USUÁRIO) ---
+    logger.info("Aplicando tratamentos finais solicitados (Power Query Migration)...")
+    
+    # 1. Remoção de colunas indesejadas
+    cols_to_remove = [
+        'LatitudeSolic', 'LongetudeSolic', 'Id', '', '_1', '_2', '_3',
+        'GUID', 'MOTIVO_EXCLUSAO', 'AVALIACAO_MATERIAL', 'CENTRO_MATERIAL',
+        'RECEBEDOR', 'SUPR_MATR', 'AuthorId', 'EditorId',
+        'IsAvulso', 'isUrgente', 'Observacao', 'MotivoRejSolic',
+        'ID', 'Created', 'DATA_CRIACAO', 'DataEstorno'
+    ]
+    df_final.drop(columns=[c for c in cols_to_remove if c in df_final.columns], inplace=True, errors='ignore')
+
+    # 2. Tratamento de IsDeleted e Filtro (Somente False)
+    if 'IsDeleted' in df_final.columns:
+        # Mapeamento robusto para booleano (logical)
+        df_final['IsDeleted'] = df_final['IsDeleted'].astype(str).str.lower().map({
+            '0': False, '0.0': False, 'false': False, 'false': False,
+            '1': True, '1.0': True, 'true': True, 'true': True
+        }).fillna(False)
+        
+        # Filtra apenas o que não foi deletado (IsDeleted = false)
+        df_final = df_final[df_final['IsDeleted'] == False].copy()
+        
+        # Converte para tipo booleano explicitamente
+        df_final['IsDeleted'] = df_final['IsDeleted'].astype(bool)
+
+    # 3. Padronização de StatusSolic
+    if 'StatusSolic' in df_final.columns:
+        status_replacements = {
+            'Confirmado': 'Movimentado',
+            'Reservado': 'Pendente',
+            'Deletado': 'Rejeitado',
+            'Estornado': 'Rejeitado'
+        }
+        df_final['StatusSolic'] = df_final['StatusSolic'].replace(status_replacements)
+
+    # 4. Formatação de Titulo (Proper Case / Cada Palavra em Maiúscula)
+    if 'titulo' in df_final.columns:
+        df_final['titulo'] = df_final['titulo'].astype(str).str.title().str.strip()
+        # Limpa eventuais 'Nan' que viraram string
+        df_final.loc[df_final['titulo'].str.lower() == 'nan', 'titulo'] = ""
+
+    # 5. Limpeza de Linhas em Branco e Erros em QuantSolic
+    # Equivalente ao Table.RemoveRowsWithErrors e Table.SelectRows(not List.IsEmpty)
+    if 'QuantSolic' in df_final.columns:
+        df_final['QuantSolic'] = pd.to_numeric(df_final['QuantSolic'], errors='coerce')
+        df_final.dropna(subset=['QuantSolic'], inplace=True)
+
+    # Remove linhas que sejam inteiramente vazias ou apenas com strings vazias
+    # (Simulando o List.RemoveMatchingItems do Power Query)
+    temp_df = df_final.replace('', np.nan)
+    df_final = df_final[temp_df.notna().any(axis=1)].copy()
+
+    # --- SANITIZAÇÃO FINAL DE STRINGS (CRÍTICO: ANTI-SHIFTING) ---
+    logger.info("Sanitizando campos de texto (Removendo ';' e quebras de linha)...")
+    text_cols = df_final.select_dtypes(include=['object']).columns
+    for col in text_cols:
+        df_final[col] = df_final[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
+        df_final.loc[df_final[col].str.lower().isin(['nan', 'none', 'nat', '']), col] = ''
+
     return df_final
 
 def main():
@@ -509,13 +580,13 @@ def main():
             df_grouped_res = create_reservas_summary(df_treated)
             output_dir_proc = root_dir / "materiais_obra/data/processed"
             output_dir_proc.mkdir(parents=True, exist_ok=True)
-            df_grouped_res.to_csv(output_dir_proc / "tabela_reservas_agrupada.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
+            df_grouped_res.to_csv(output_dir_proc / "tabela_reservas_agrupada.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d', decimal=',')
             logger.info("Tabela de reservas agrupada salva.")
 
             # 7. Consolidação Geral (Materiais + Reservas)
             df_consolidated = consolidate_all_data(df_treated, root_dir)
             if not df_consolidated.empty:
-                df_consolidated.to_csv(output_dir_proc / "solicitacoes_consolidadas_geral.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d')
+                df_consolidated.to_csv(output_dir_proc / "solicitacoes_consolidadas_geral.csv", index=False, sep=';', encoding='utf-8-sig', date_format='%Y-%m-%d', decimal=',')
                 logger.info("Consolidado geral (Materiais + Reservas) salvo.")
         else:
             logger.warning("DataFrame vazio. Nenhum arquivo salvo.")
