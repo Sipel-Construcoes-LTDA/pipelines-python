@@ -127,8 +127,8 @@ def clean_pendency_tags(text: Any) -> str:
     
     # Divide por ; ou , e limpa cada parte
     parts = [p.strip().title() for p in str(text).replace(',', ';').split(';') if p.strip()]
-    # Remove duplicatas mantendo ordem alfabética
-    return "; ".join(sorted(list(set(parts))))
+    # Remove duplicatas mantendo ordem alfabética - USANDO VÍRGULA para não quebrar o CSV
+    return ", ".join(sorted(list(set(parts))))
 
 def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
     logger.info("Iniciando limpeza técnica...")
@@ -171,6 +171,10 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
         logger.info(f"Convertendo colunas de data: {found_dates}")
         for col in found_dates:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.normalize()
+
+    # Renomeia DataRegularisado para DataRegularizacao se existir
+    if 'DataRegularisado' in df.columns:
+        df.rename(columns={'DataRegularisado': 'DataRegularizacao'}, inplace=True)
 
     # Log de perfilamento simples
     logger.info(f"Dimensões finais: {df.shape}")
@@ -273,6 +277,14 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
 
     # 6. Identificação do Processo
     df['Processo'] = 'Obras'
+
+    # 7. Sanitização Global de Strings (CRÍTICO: Evita Column Shifting no CSV)
+    # Remove ';' e quebras de linha que quebram a estrutura do arquivo
+    text_cols = df.select_dtypes(include=['object']).columns
+    for col in text_cols:
+        df[col] = df[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
+        # Restaura vazios reais
+        df.loc[df[col].str.lower().isin(['nan', 'none', 'nat', '']), col] = ''
 
     return df
 
