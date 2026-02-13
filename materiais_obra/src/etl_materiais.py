@@ -280,7 +280,10 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
 
     # 7. Sanitização Global de Strings (CRÍTICO: Evita Column Shifting no CSV)
     # Remove ';' e quebras de linha que quebram a estrutura do arquivo
-    text_cols = df.select_dtypes(include=['object']).columns
+    # Seleciona apenas colunas 'object' que não são identificadas como data
+    text_cols = [c for c in df.select_dtypes(include=['object']).columns 
+                 if not ('Data' in c or c in ['Created', 'Modified'])]
+    
     for col in text_cols:
         df[col] = df[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
         # Restaura vazios reais
