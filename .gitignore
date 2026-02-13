@@ -4,3 +4,7 @@ faturamento_comercial/faturamentos_executados_consolidado.csv
 
 __pycache__
 .env
+
+node_modules
+package-lock.json
+package.json
