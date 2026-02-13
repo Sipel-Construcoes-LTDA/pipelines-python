@@ -162,15 +162,53 @@ def main():
         if 'Id' in df_final.columns:
             df_final = df_final[df_final['Id'].notna()].copy()
 
-        # 2. Padronização de StatusSolic
+        # 2. Padronização de StatusSolic e Unificação de IdSolic (REGRAS DE NEGÓCIO)
+        if 'Created' in df_final.columns:
+            df_final['Created_Date'] = pd.to_datetime(df_final['Created']).dt.normalize()
+
+        group_cols = ['obra', 'TipoSolic', 'Created_Date', 'NumeroReserva']
+        group_cols = [c for c in group_cols if c in df_final.columns]
+
+        # Aplicamos a unificação APENAS para o processo de Encerramento
+        if len(group_cols) >= 3 and 'IdSolic' in df_final.columns:
+            logger.info(f"Aplicando padronização definitiva de IdSolic (Encerramento) baseado em: {group_cols}")
+            
+            # Máscara para identificar o que é Encerramento
+            mask_enc = df_final['Processo'] == 'Encerramento'
+            
+            if mask_enc.any():
+                # Limpeza e Padronização de Obra
+                df_final.loc[mask_enc, 'obra'] = df_final.loc[mask_enc, 'obra'].astype(str).str.strip().str.replace(r'^[Bb]-', '', regex=True).str.strip()
+                
+                # DEFINITIVO: Para Encerramento, ignoramos o ID original e geramos o ID baseado na chave de negócio.
+                reserva_serie = df_final.loc[mask_enc, 'NumeroReserva'].astype(str).replace(['nan', 'NaN', 'None', '<NA>', ''], 'S-RES')
+                
+                df_final.loc[mask_enc, 'IdSolic'] = (
+                    "ENC-" + 
+                    df_final.loc[mask_enc, 'Created_Date'].dt.strftime('%Y%m%d') + "-" + 
+                    df_final.loc[mask_enc, 'obra'].astype(str) + "-" +
+                    df_final.loc[mask_enc, 'TipoSolic'].astype(str) + "-" +
+                    reserva_serie
+                )
+
+        # Padronização de StatusSolic (Hierarquia)
         if 'StatusSolic' in df_final.columns:
             status_map = {
                 'Confirmado': 'Movimentado',
                 'Reservado': 'Pendente',
                 'Deletado': 'Rejeitado',
-                'Estornado': 'Rejeitado'
+                'Estornado': 'Rejeitado',
+                'Mov Parcial': 'Mov. Parcial',
+                'Mov.Parcial': 'Mov. Parcial'
             }
             df_final['StatusSolic'] = df_final['StatusSolic'].replace(status_map)
+
+            # Aplica hierarquia dentro do IdSolic unificado: se uma linha do grupo for Parcial, todas viram Parcial? 
+            # (No detalhado mantemos o status do item, mas garantimos que se um ID tem Movimentado + Pendente, o ID é Parcial no Agrupado)
+            # Para o detalhado, vamos apenas garantir que os nomes dos status estejam padronizados.
+
+        if 'Created_Date' in df_final.columns:
+            df_final.drop(columns=['Created_Date'], inplace=True)
 
         # 3. Tratamento da coluna 'Justificar'
         if 'Justificar' in df_final.columns:
@@ -204,7 +242,10 @@ def main():
 
         # --- SANITIZAÇÃO FINAL DE STRINGS (CRÍTICO: ANTI-SHIFTING) ---
         logger.info("Sanitizando campos de texto (Removendo ';' e quebras de linha)...")
-        text_cols = df_final.select_dtypes(include=['object']).columns
+        # Seleciona apenas colunas 'object' que não são identificadas como data
+        text_cols = [c for c in df_final.select_dtypes(include=['object']).columns 
+                     if not ('Data' in c or c in ['Created', 'Modified'])]
+        
         for col in text_cols:
             df_final[col] = df_final[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
             df_final.loc[df_final[col].str.lower().isin(['nan', 'none', 'nat', '']), col] = ''

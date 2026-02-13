@@ -182,26 +182,48 @@ def clean_and_profile_data(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
 def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aplica regras de negócio e sanitização de valores.
-    NOTA: Assume que as colunas JÁ FORAM PADRONIZADAS pela função standardize_columns.
     """
     logger.info("Aplicando regras de negócio e sanitização...")
 
-    # 1. Unificação de IDSolic (Granularidade: obra + TipoSolic + Created)
-    # Nomes atualizados pós-padronização
-    group_cols = ['obra', 'TipoSolic', 'Created']
-    if set(group_cols).issubset(df.columns) and 'IdSolic' in df.columns:
-        logger.info(f"Unificando IdSolic baseado em: {group_cols}")
-        # Converte para string de forma segura, mantendo NaN como real NaN
-        df['IdSolic'] = df['IdSolic'].astype(str).replace(['nan', 'NaN', 'None', '<NA>', ''], np.nan)
+    # 1. Regra de DataSolicPrev para Encerramento (Solicitação do Usuário)
+    if 'Created' in df.columns:
+        df['Created_Date'] = pd.to_datetime(df['Created']).dt.normalize()
+
+    if 'DataCriacaoReserva' in df.columns:
+        # Se DataSolicPrev estiver vazia, usa DataCriacaoReserva
+        if 'DataSolicPrev' not in df.columns:
+            df['DataSolicPrev'] = df['DataCriacaoReserva']
+        else:
+            df['DataSolicPrev'] = df['DataSolicPrev'].fillna(df['DataCriacaoReserva'])
+
+    # 1.1 Unificação de IDSolic (APENAS PARA ENCERRAMENTO - Granularidade: obra + TipoSolic + Created_Date + NumeroReserva)
+    df['Processo'] = 'Encerramento' # Define o processo antes da unificação
+    
+    # Limpeza preventiva de 'obra' para garantir agrupamento correto
+    if 'obra' in df.columns:
+        df['obra'] = df['obra'].astype(str).str.strip().str.replace(r'^[Bb]-', '', regex=True).str.strip()
+
+    group_cols = ['obra', 'TipoSolic', 'Created_Date', 'NumeroReserva']
+    group_cols = [c for c in group_cols if c in df.columns]
+    
+    if len(group_cols) >= 3 and 'IdSolic' in df.columns:
+        logger.info(f"Padronizando IdSolic (Processo: Encerramento) com prefixo ENC- baseado em: {group_cols}")
         
-        # Cria um mapeamento do IdSolic mais relevante por grupo (o primeiro valor não nulo encontrado)
-        # Ordenamos para garantir que o IdSolic preenchido venha primeiro
-        ids_map = df.sort_values('IdSolic').groupby(group_cols, dropna=False)['IdSolic'].first()
+        # Garante que NumeroReserva tenha um fallback se for nulo
+        reserva_serie = df['NumeroReserva'].astype(str).replace(['nan', 'NaN', 'None', '<NA>', ''], 'S-RES')
         
-        # Mapeia de volta para o dataframe original
-        df = df.set_index(group_cols)
-        df['IdSolic'] = df['IdSolic'].fillna(ids_map)
-        df = df.reset_index()
+        # DEFINITIVO: Para Encerramento, ignoramos o ID original (UUID) e geramos o ID baseado na chave de negócio.
+        df['IdSolic'] = (
+            "ENC-" + 
+            df['Created_Date'].dt.strftime('%Y%m%d') + "-" + 
+            df['obra'].astype(str) + "-" +
+            df['TipoSolic'].astype(str) + "-" +
+            reserva_serie
+        )
+    
+    # Remove coluna auxiliar
+    if 'Created_Date' in df.columns:
+        df.drop(columns=['Created_Date'], inplace=True)
 
     # 2. Filtro de Integridade: Remove registros sem IdSolic
     if 'IdSolic' in df.columns:
@@ -334,12 +356,32 @@ def create_reservas_summary(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     def resolve_status(series):
-        statuses = set(s.strip() for s in series.astype(str) if s.strip() and s.lower() != 'nan')
-        if not statuses: return ''
-        if 'Mov. Parcial' in statuses: return 'Mov. Parcial'
-        if len(statuses) == 1:
-            return list(statuses)[0]
-        return 'Misto/Em Análise'
+        # Limpa e padroniza os status para análise
+        statuses = set(s.strip().title() for s in series.astype(str) 
+                       if s.strip() and s.lower() not in ['nan', 'none', 'nat'])
+        
+        if not statuses: 
+            return 'Pendente'
+            
+        # 1. Prioridade Máxima: Mov. Parcial
+        # Se houver qualquer indicação de parcialidade, o grupo todo assume esse status
+        if any('Parcial' in s for s in statuses):
+            return 'Mov. Parcial'
+            
+        # 2. Segunda Prioridade: Movimentado ou Confirmado
+        # Se todos ou alguns forem movimentados (e não houver Parcial), priorizamos Movimentado
+        if any(s in ['Movimentado', 'Confirmado'] for s in statuses):
+            # Se tiver Movimentado e também tiver Pendente no mesmo ID agrupado, vira Parcial
+            if any('Pendente' in s or 'Reservado' in s for s in statuses):
+                return 'Mov. Parcial'
+            return 'Movimentado'
+            
+        # 3. Terceira Prioridade: Pendente
+        if any(s in ['Pendente', 'Reservado'] for s in statuses):
+            return 'Pendente'
+            
+        # Fallback para o primeiro status encontrado se for algo fora do padrão
+        return sorted(list(statuses))[0] if statuses else 'Pendente'
 
     def agg_pendencias(series):
         all_p = "; ".join([str(s) for s in series if pd.notna(s) and str(s).strip()])
@@ -363,9 +405,10 @@ def create_reservas_summary(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             agg_rules[col] = 'first'
             
-    # Datas: pega a mínima
+    # Datas: pega a mínima (Garante conversão para datetime para evitar erro de agg no pandas)
     date_cols = [c for c in df.columns if 'Data' in c or c in ['Created', 'Modified']]
     for col in date_cols:
+        df[col] = pd.to_datetime(df[col], errors='coerce')
         if col not in agg_rules:
             agg_rules[col] = 'min'
 
@@ -406,6 +449,34 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         # E convertemos para tz-naive (removendo o UTC) para consistência no CSV
         df_all[col] = pd.to_datetime(df_all[col], errors='coerce', utc=True).dt.tz_localize(None).dt.normalize()
 
+    # --- UNIFICAÇÃO DE IDSOLIC NO CONSOLIDADO (ENCERRAMENTO) ---
+    if 'Created' in df_all.columns:
+        df_all['Created_Date_Temp'] = pd.to_datetime(df_all['Created']).dt.normalize()
+        
+        # Só unifica para Encerramento (Reservas)
+        mask_enc = df_all['Processo'] == 'Encerramento'
+        if mask_enc.any():
+            logger.info("Padronizando IdSolic na base consolidada (Encerramento) com prefixo ENC-...")
+            # Garante limpeza de obra
+            df_all.loc[mask_enc, 'obra'] = df_all.loc[mask_enc, 'obra'].astype(str).str.strip().str.replace(r'^[Bb]-', '', regex=True).str.strip()
+            
+            # DEFINITIVO: Para Encerramento, ignoramos o ID original e geramos o ID baseado na chave de negócio.
+            reserva_serie = df_all.loc[mask_enc, 'NumeroReserva'].astype(str).replace(['nan', 'NaN', 'None', '<NA>', ''], 'S-RES')
+            
+            df_all.loc[mask_enc, 'IdSolic'] = (
+                "ENC-" + 
+                df_all.loc[mask_enc, 'Created_Date_Temp'].dt.strftime('%Y%m%d') + "-" + 
+                df_all.loc[mask_enc, 'obra'].astype(str) + "-" +
+                df_all.loc[mask_enc, 'TipoSolic'].astype(str) + "-" +
+                reserva_serie
+            )
+
+        df_all.drop(columns=['Created_Date_Temp'], inplace=True)
+
+    # Garantia extra para DataRegularizacao
+    if 'DataRegularizacao' in df_all.columns:
+        df_all['DataRegularizacao'] = pd.to_datetime(df_all['DataRegularizacao'], errors='coerce')
+
     # Garantia de que QuantSolic é numérica e válida após o merge
     if 'QuantSolic' in df_all.columns:
         df_all['QuantSolic'] = pd.to_numeric(df_all['QuantSolic'], errors='coerce')
@@ -438,13 +509,29 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
     logger.info("Agrupando base consolidada geral...")
     
     def resolve_status_geral(series):
-        statuses = set(s.strip() for s in series.astype(str) if s.strip() and s.lower() != 'nan')
-        if 'Mov. Parcial' in statuses: return 'Mov. Parcial'
-        # Se tem itens Pendentes e Movimentados no mesmo ID, é Parcial
-        if ('Pendente' in statuses or 'Reservado' in statuses) and 'Movimentado' in statuses: 
+        # Limpa e padroniza os status para análise
+        statuses = set(s.strip().title() for s in series.astype(str) 
+                       if s.strip() and s.lower() not in ['nan', 'none', 'nat'])
+        
+        if not statuses: 
+            return 'Pendente'
+            
+        # 1. Prioridade Máxima: Mov. Parcial
+        if any('Parcial' in s for s in statuses):
             return 'Mov. Parcial'
-        if 'Movimentado' in statuses: return 'Movimentado'
-        return list(statuses)[0] if statuses else 'Pendente'
+            
+        # 2. Segunda Prioridade: Movimentado ou Confirmado
+        if any(s in ['Movimentado', 'Confirmado'] for s in statuses):
+            # Se tiver Movimentado e também tiver Pendente no mesmo ID agrupado, vira Parcial
+            if any('Pendente' in s or 'Reservado' in s for s in statuses):
+                return 'Mov. Parcial'
+            return 'Movimentado'
+            
+        # 3. Terceira Prioridade: Pendente
+        if any(s in ['Pendente', 'Reservado'] for s in statuses):
+            return 'Pendente'
+            
+        return sorted(list(statuses))[0] if statuses else 'Pendente'
 
     def agg_pendencias(series):
         all_p = "; ".join([str(s) for s in series if pd.notna(s) and str(s).strip()])
@@ -494,7 +581,7 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
         'GUID', 'MOTIVO_EXCLUSAO', 'AVALIACAO_MATERIAL', 'CENTRO_MATERIAL',
         'RECEBEDOR', 'SUPR_MATR', 'AuthorId', 'EditorId',
         'IsAvulso', 'isUrgente', 'Observacao', 'MotivoRejSolic',
-        'ID', 'Created', 'DATA_CRIACAO', 'DataEstorno'
+        'ID', 'DATA_CRIACAO', 'DataEstorno'
     ]
     df_final.drop(columns=[c for c in cols_to_remove if c in df_final.columns], inplace=True, errors='ignore')
 
@@ -541,7 +628,10 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
 
     # --- SANITIZAÇÃO FINAL DE STRINGS (CRÍTICO: ANTI-SHIFTING) ---
     logger.info("Sanitizando campos de texto (Removendo ';' e quebras de linha)...")
-    text_cols = df_final.select_dtypes(include=['object']).columns
+    # Seleciona apenas colunas 'object' que não são identificadas como data
+    text_cols = [c for c in df_final.select_dtypes(include=['object']).columns 
+                 if not ('Data' in c or c in ['Created', 'Modified'])]
+    
     for col in text_cols:
         df_final[col] = df_final[col].astype(str).str.replace(';', ',', regex=False).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
         df_final.loc[df_final[col].str.lower().isin(['nan', 'none', 'nat', '']), col] = ''
