@@ -24,6 +24,12 @@ O repositório está organizado por pastas, onde cada uma representa um domínio
 
 ```text
 pipelines-dados-SIPEL/
+├── clientes_leitura/              # Pipeline de Clientes e Leitura (Novo)
+│   ├── data/                      # Planilhas fonte e processadas
+│   └── src/etl_clientes.py        # Script de padronização e consolidação
+├── materiais_obra/                # Pipeline de Materiais e Suprimentos (Novo)
+│   ├── data/                      # Cache de extração (Raw) e Processados
+│   └── src/                       # Scripts de extração SharePoint e Transformação
 ├── encerramento_tecnico/          # Pipeline de Encerramento Técnico (Novo)
 │   ├── data/                      # Dados auxiliares e processados
 │   └── src/etl_encerramento.py    # Script principal de ETL
@@ -126,6 +132,32 @@ Pipeline projetado para consolidar dados de colaboradores de múltiplas bases (B
     *   **Tratamento de Nulos**: Preenchimento inteligente de campos vazios como "Não Especificado" para evitar strings "Nan".
 *   **Output**: `data/processed/descontos_consolidados.csv`.
 
+### 6. Clientes e Leitura
+*Local: `/clientes_leitura`*
+*Script: `src/etl_clientes.py`*
+
+Pipeline de padronização de cadastros de clientes para rotas de leitura.
+*   **Input**: Arquivos `.xlsx` brutos exportados do sistema comercial.
+*   **Regras de Negócio**:
+    *   **Mapeamento Flexível**: Identifica colunas baseando-se em variantes de nomes (ex: "Instal", "Instalação") para suportar diferentes layouts de exportação.
+    *   **Tipagem Estrita**: Conversão de `instalacao` e `conta_contrato` para Inteiros (Int64), removendo o sufixo `.0` comum em leituras do Excel.
+    *   **Deduplicação**: Garante registros únicos por número de instalação.
+*   **Output**: `data/processed/clientes_consolidados.csv`.
+
+### 7. Materiais de Obra (SharePoint)
+*Local: `/materiais_obra`*
+*Scripts: `src/etl_materiais.py`, `src/etl_reservas.py`, `src/etl_movimentacoes_detalhada.py`*
+
+Ecossistema de pipelines para gestão de suprimentos e movimentação de materiais, integrado diretamente ao SharePoint corporativo.
+*   **Input**:
+    *   Listas do SharePoint (`MateriaisObraSolic` e `TabelaReservas`).
+*   **Regras de Negócio**:
+    *   **Unificação de IdSolic**: Para processos de Encerramento, o pipeline gera um ID de negócio único baseado na combinação de obra, data e reserva, permitindo o rastreamento fim-a-fim.
+    *   **Hierarquia de Status**: Resolução lógica de status para solicitações agrupadas (ex: se um item for "Pendente" e outro "Confirmado", a solicitação assume status "Mov. Parcial").
+    *   **Higienização de Dados**: Remoção de caracteres especiais que rompem a estrutura de arquivos CSV e normalização de nomes de materiais e colaboradores.
+    *   **Consolidação Geral**: Cruzamento automático entre solicitações diretas e reservas técnicas para uma visão 360º do almoxarifado.
+*   **Output**: `data/processed/solicitacoes_consolidadas_geral.csv` e `fato_movimentacoes_itens.csv`.
+
 ## 📦 Como Executar
 
 ### Instalação das Dependências
@@ -163,6 +195,21 @@ python etl_encerramento.py
 **Descontos de Segurança:**
 ```bash
 python descontos_segurança/src/etl_descontos.py
+```
+
+**Clientes e Leitura:**
+```bash
+python clientes_leitura/src/etl_clientes.py
+```
+
+**Materiais de Obra (Completo):**
+```bash
+# 1. Extrair solicitações e reservas (Requer .env configurado)
+python materiais_obra/src/etl_materiais.py
+python materiais_obra/src/etl_reservas.py
+
+# 2. Consolidar movimentações detalhadas
+python materiais_obra/src/etl_movimentacoes_detalhada.py
 ```
 
 ---
@@ -287,6 +334,59 @@ graph TD
     E --> F
     F --> G
     G --> H
+```
+
+### 5. Clientes e Leitura
+```mermaid
+graph TD
+    subgraph Sources
+        A[Arquivos .xlsx<br/>Export Sistema]
+    end
+
+    subgraph ETL[etl_clientes.py]
+        B[Identificar Colunas Variantes]
+        C[Filtrar Colunas Modelo]
+        D[Tipagem: Int64]
+        E[Deduplicação: Instalacao]
+    end
+
+    subgraph Output
+        F[(clientes_consolidados.csv)]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+```
+
+### 6. Materiais de Obra (SharePoint)
+```mermaid
+graph TD
+    subgraph Sources
+        A[SharePoint: MateriaisObraSolic]
+        B[SharePoint: TabelaReservas]
+    end
+
+    subgraph ETL[Processamento SharePoint]
+        C[Extrator Paginado]
+        D[Unificação IdSolic Encerramento]
+        E[Hierarquia de Status]
+        F[Sanitização Anti-Shifting]
+    end
+
+    subgraph Output
+        G[(fato_movimentacoes_itens.csv)]
+        H[(solicitacoes_consolidadas_geral.csv)]
+    end
+
+    A --> C
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G & H
 ```
 
 ## 📄 Licença
