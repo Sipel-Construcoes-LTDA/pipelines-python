@@ -37,7 +37,7 @@ def enforce_strict_types(df: pd.DataFrame) -> pd.DataFrame:
     cols_date = [
         "DataEstorno", "DataSolic", "DataCriacaoReserva", "Modified", 
         "DataPendencia", "DataRegularizacao", "Created", "DataSolicMod", 
-        "DataSolicPrev", "DATA_CRIACAO", "DataSaqMod"
+        "DataSolicPrev", "DATA_CRIACAO", "DataSolicMod"
     ]
     
     # Strings (Texto)

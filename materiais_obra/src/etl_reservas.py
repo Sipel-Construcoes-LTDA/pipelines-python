@@ -336,7 +336,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         'QUANTIDADE_MOVIMENTADA': 'Quant_Confirmada',
         'IDSolic': 'IdSolic',
         'Titulo': 'titulo',
-        'DataMovimentacao': 'DataSaqMod',
+        'DataMovimentacao': 'DataSolicMod',
         'TECNICO': 'Coleborador_solicitante',
         'Urgente': 'isUrgente',
         'OBSERVACAO_MAT': 'Observacao',
@@ -565,7 +565,7 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
             agg_rules[col] = 'first'
 
     # Garante que colunas de data críticas usem 'max' se existirem
-    critical_date_cols = ['DataCriacaoReserva', 'DataSaqMod', 'DataPendencia', 'DataRegularizacao']
+    critical_date_cols = ['DataCriacaoReserva', 'DataSolicMod', 'DataPendencia', 'DataRegularizacao']
     for col in critical_date_cols:
         if col in df_all.columns:
             agg_rules[col] = 'max'
