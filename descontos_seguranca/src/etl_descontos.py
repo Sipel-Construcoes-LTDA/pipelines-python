@@ -2,22 +2,24 @@ import pandas as pd
 import os
 import logging
 from thefuzz import process as fuzzy_process
+from collections import defaultdict
+from typing import Dict, List, Any
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Constantes de Caminhos ---
-BASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data')
-INPUT_PATH = os.path.join(BASE_PATH, 'auxiliary')
-OUTPUT_PATH = os.path.join(BASE_PATH, 'processed')
-COLABORADORES_FILES = {
+BASE_PATH: str = os.path.join(os.path.dirname(__file__), '..', 'data')
+INPUT_PATH: str = os.path.join(BASE_PATH, 'auxiliary')
+OUTPUT_PATH: str = os.path.join(BASE_PATH, 'processed')
+COLABORADORES_FILES: Dict[str, str] = {
     'bonfim': os.path.join(INPUT_PATH, 'aux_colaboradores_bonfim.xlsx'),
     'jacobina': os.path.join(INPUT_PATH, 'aux_colaboradores_jacobina.xlsx'),
     'juazeiro': os.path.join(INPUT_PATH, 'aux_colaboradores_juazeiro.xlsx')
 }
-DESCONTOS_FILE = os.path.join(INPUT_PATH, 'aux_descontos.csv')
-GESTORES_FILE = os.path.join(INPUT_PATH, 'aux_gestores.xlsx')
-OUTPUT_FILE = os.path.join(OUTPUT_PATH, 'descontos_consolidados.csv')
+DESCONTOS_FILE: str = os.path.join(INPUT_PATH, 'aux_descontos.csv')
+GESTORES_FILE: str = os.path.join(INPUT_PATH, 'aux_gestores.xlsx')
+OUTPUT_FILE: str = os.path.join(OUTPUT_PATH, 'descontos_consolidados.csv')
 
 
 def extract_and_clean_bonfim(file_path: str) -> pd.DataFrame:
@@ -121,13 +123,13 @@ def standardize_managers(df_processed: pd.DataFrame, df_gestores: pd.DataFrame) 
     logging.info("Padronizando nomes dos gestores...")
     
     # Cria lista de nomes de referência
-    valid_managers = df_gestores['Clean_Name'].unique()
-    target_name_map = dict(zip(df_gestores['Clean_Name'], df_gestores['PRIMEIRO E ULTIMO NOME']))
+    valid_managers: List[str] = list(df_gestores['Clean_Name'].unique())
+    target_name_map: Dict[str, str] = dict(zip(df_gestores['Clean_Name'], df_gestores['PRIMEIRO E ULTIMO NOME']))
     
     # Mapeamento de cache para evitar processamento repetido
-    manager_cache = {}
+    manager_cache: Dict[str, str] = {}
     
-    def get_standard_manager(name):
+    def get_standard_manager(name: Any) -> str:
         if pd.isna(name) or name == "" or name == "nan":
             return "Não Especificado"
         
@@ -157,9 +159,6 @@ def standardize_managers(df_processed: pd.DataFrame, df_gestores: pd.DataFrame) 
     df_processed['Gestor_Padronizado'] = df_processed['Gestor'].apply(get_standard_manager)
     return df_processed
 
-from thefuzz import process as fuzzy_process
-from collections import defaultdict
-
 def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     """
     Processa o arquivo de descontos usando uma estratégia de matching em cascata:
@@ -184,9 +183,9 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     nomes_descontos = df_descontos['Nome_Original'].dropna().unique()
     nomes_colaboradores = df_colaboradores['Nome'].dropna().unique()
     
-    SIMILARITY_THRESHOLD = 96
-    nome_map = {}
-    unmatched_after_primary = []
+    SIMILARITY_THRESHOLD: int = 96
+    nome_map: Dict[str, str] = {}
+    unmatched_after_primary: List[str] = []
 
     for nome_desconto in nomes_descontos:
         best_match = fuzzy_process.extractOne(nome_desconto, nomes_colaboradores)
@@ -201,17 +200,17 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     logging.info("Iniciando 2ª Etapa: Fallback via Supervisor/Coordenador.")
     
     # Prepara um mapa de gestor -> lista de nomes da sua equipe
-    gestor_map = df_colaboradores.groupby('Gestor')['Nome'].apply(list).to_dict()
+    gestor_map: Dict[str, List[str]] = df_colaboradores.groupby('Gestor')['Nome'].apply(list).to_dict()
     
     df_unmatched = df_descontos[df_descontos['Nome_Original'].isin(unmatched_after_primary)]
-    final_unmatched = []
+    final_unmatched: List[str] = []
 
     for _, row in df_unmatched.iterrows():
         nome_desconto = row['Nome_Original']
         supervisor = row['Supervisor']
         coordenador = row['Coordenador']
         
-        found_match = False
+        found_match: bool = False
         
         # Tenta com o Supervisor
         if pd.notna(supervisor) and supervisor in gestor_map:
@@ -253,7 +252,7 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     df_processed['Data Ocorrência'] = pd.to_datetime(df_processed['Data Ocorrência'], format='%d/%m/%Y', errors='coerce')
     df_processed = df_processed[df_processed['Data Ocorrência'] > '2024-12-31']
     
-    setor_replacements = {
+    setor_replacements: Dict[str, str] = {
         "Linha Viva Juazeiro 1": "Linha Viva", "Manutenção Pesada": "Manutenção",
         "Comercial Juazeiro": "Comercial", "Comercial C. Alegre": "Comercial",
         "Turma Rubem": "Construção", "Comercial Remanso": "Comercial",
@@ -267,7 +266,7 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     df_gestores = load_and_prep_gestores()
     df_processed = standardize_managers(df_processed, df_gestores)
     
-    cols_to_capitalize = ["Origem", "Tipo", "Grupo Item", "Item", "Setor"] # Gestor removido daqui pois já foi tratado
+    cols_to_capitalize: List[str] = ["Origem", "Tipo", "Grupo Item", "Item", "Setor"] # Gestor removido daqui pois já foi tratado
     for col in cols_to_capitalize:
         if col in df_processed.columns:
             # Preenche NA com string vazia antes de converter e capitalizar para evitar "Nan"
@@ -280,7 +279,7 @@ def process_descontos(df_colaboradores: pd.DataFrame) -> pd.DataFrame:
     
     return df_processed
 
-def main():
+def main() -> None:
     """Função principal para orquestrar o pipeline de ETL."""
     logging.info("Iniciando pipeline de ETL de Descontos de Segurança.")
     

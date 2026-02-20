@@ -3,7 +3,8 @@ import requests
 import io
 import re
 import logging
-from typing import Optional
+import os
+from typing import List, Optional, Any
 
 # Configuração de Logging
 logging.basicConfig(
@@ -12,15 +13,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configurações do Projeto
-SPREADSHEET_ID = "1RbdE7CPmHrV3Z-HsWHVY2UfWBD-SlBDmknCfI6V0BfA"
-GIDS = [
+# --- Configurações & Constantes ---
+SPREADSHEET_ID: str = "1RbdE7CPmHrV3Z-HsWHVY2UfWBD-SlBDmknCfI6V0BfA"
+GIDS: List[str] = [
     "604361021", "1090094802", "85077049", "1927088907", "0",
     "563947352", "1410869809", "1540399676", "2071167239",
     "203226281", "516940634", "1296316494"
 ]
+# O diretório de saída agora é relativo ao script, dentro de data/processed
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_DIR = os.path.join(BASE_DIR, 'data', 'processed')
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'faturamentos_tratados.csv')
 
-def clean_value(val: any) -> Optional[str]:
+
+def clean_value(val: Any) -> Optional[str]:
     """
     Trata o valor individual da célula.
     """
@@ -36,34 +42,28 @@ def clean_value(val: any) -> Optional[str]:
         return None
 
     # Normalizar para 7 caracteres (preencher com zeros à esquerda se necessário)
-    # Ex: "1234" -> "0001234"
-    # Ex: "1234567" -> "1234567"
     final_val = digits_only.zfill(7)
     
-    # Opcional: Se quiser garantir que não estourou 7 (ex: 8 digitos), pode truncar ou validar
     if len(final_val) > 7:
-        # Se for maior que 7, vamos manter para análise ou retornar None?
-        # O pedido foi "todos os valores extraidos tenham o total 7 caracteres"
-        # Vamos assumir que se passar de 7 é erro, ou pegar os últimos 7?
-        # Por segurança, vamos manter apenas se tiver exatamente 7 após o zfill.
         return None 
         
     return final_val
 
 def fetch_and_process(gid: str) -> pd.DataFrame:
+    """
+    Busca os dados de uma GID específica, processa e retorna um DataFrame limpo.
+    """
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}"
     
     try:
         response = requests.get(url)
         response.raise_for_status()
         
-        # dtype=str garante que zeros à esquerda não sejam perdidos na leitura
         df = pd.read_csv(io.StringIO(response.text), header=1, dtype=str)
         
         if df.shape[1] < 2:
             return pd.DataFrame()
             
-        # Coluna B
         raw_series = df.iloc[:, 1]
         cleaned_series = raw_series.apply(clean_value).dropna().drop_duplicates()
         
@@ -73,7 +73,6 @@ def fetch_and_process(gid: str) -> pd.DataFrame:
         if count == 0:
              return pd.DataFrame()
 
-        # Construtor explícito por dicionário
         ret_df = pd.DataFrame({'ID_EXTRAIDO': cleaned_series})
         return ret_df
         
@@ -81,10 +80,14 @@ def fetch_and_process(gid: str) -> pd.DataFrame:
         logger.error(f"Erro ao processar GID {gid}: {e}")
         return pd.DataFrame()
 
-def main():
-    logger.info("Iniciando Pipeline de Tratamento (v2)...")
+def main() -> None:
+    """
+    Orquestra o pipeline de busca e tratamento dos dados de faturamento.
+    """
+    logger.info("Iniciando Pipeline de Tratamento de Faturamento...")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    all_data = []
+    all_data: List[pd.DataFrame] = []
     
     for gid in GIDS:
         df_part = fetch_and_process(gid)
@@ -102,9 +105,8 @@ def main():
         
         logger.info(f"Total Bruto: {initial_count} | Total Único: {final_count}")
         
-        output_file = "faturamentos_tratados.csv"
-        final_df.to_csv(output_file, index=False)
-        logger.info(f"ARQUIVO GERADO: {output_file}")
+        final_df.to_csv(OUTPUT_FILE, index=False)
+        logger.info(f"ARQUIVO GERADO: {OUTPUT_FILE}")
     else:
         logger.error("ERRO CRÍTICO: Nenhum dado foi consolidado.")
 
