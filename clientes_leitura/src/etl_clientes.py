@@ -1,7 +1,8 @@
 import logging
-import pandas as pd
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
+
+import pandas as pd
 
 # Configuração de Logging Profissional
 logging.basicConfig(
