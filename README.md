@@ -20,32 +20,38 @@ Repositório centralizado para automação de extração, tratamento e carga de 
 
 ## 🚀 Estrutura do Repositório
 
-O repositório está organizado por pastas, onde cada uma representa um domínio de dados ou pipeline específico:
+O repositório está organizado por pastas, onde cada uma representa um domínio de dados ou pipeline específico. A estrutura foi refatorada para padronizar o uso de um diretório `src` para todo o código-fonte.
 
 ```text
 pipelines-dados-SIPEL/
-├── clientes_leitura/              # Pipeline de Clientes e Leitura (Novo)
-│   ├── data/                      # Planilhas fonte e processadas
-│   └── src/etl_clientes.py        # Script de padronização e consolidação
-├── materiais_obra/                # Pipeline de Materiais e Suprimentos (Novo)
-│   ├── data/                      # Cache de extração (Raw) e Processados
-│   └── src/                       # Scripts de extração SharePoint e Transformação
-├── encerramento_tecnico/          # Pipeline de Encerramento Técnico (Novo)
-│   ├── data/                      # Dados auxiliares e processados
-│   └── src/etl_encerramento.py    # Script principal de ETL
-├── faturamento_comercial/         # Pipeline de Faturamento
-│   ├── etl_faturamento.py         # Tratamento de IDs Google Sheets
-│   ├── etl_valores_executados.py  # Consolidação de Valores Executados (Novo)
-│   ├── valores_executados/        # Arquivos .XLS e Dimensões
-│   └── faturamentos_tratados.csv  # Output gerado
-├── produtividade_comercial/       # Pipeline de Produtividade
-│   ├── 2024/                      # Arquivos fonte (Histórico)
-│   ├── 2025/                      # Arquivos fonte (Corrente)
-│   ├── etl_produtividade.py       # Script principal de ETL
-│   └── produtividade_tratada.csv  # Output gerado (CSV ; UTF-8)
+├── clientes_leitura/
+│   ├── data/
+│   └── src/etl_clientes.py
+├── descontos_seguranca/
+│   ├── data/
+│   └── src/etl_descontos.py
+├── encerramento_tecnico/
+│   ├── data/
+│   └── src/etl_encerramento.py
+├── faturamento_comercial/
+│   ├── data/
+│   ├── valores_executados/
+│   └── src/
+│       ├── etl_faturamento.py
+│       └── etl_valores_executados.py
+├── materiais_obra/
+│   ├── data/
+│   └── src/
+├── produtividade_comercial/
+│   ├── 2024/
+│   ├── 2025/
+│   ├── 2026/
+│   ├── data/
+│   └── src/etl_produtividade.py
+├── .pre-commit-config.yaml      # Configuração dos Hooks de Pre-commit
 ├── GEMINI.md                      # Diretrizes da IA e padrões de engenharia
 ├── README.md                      # Documentação oficial
-└── .gitignore                     # Configuração de exclusão do Git
+└── requirements.txt
 ```
 
 ## 🤖 Integração com Gemini AI
@@ -56,11 +62,41 @@ Este repositório segue diretrizes estritas de desenvolvimento definidas no arqu
 2.  **Código Seguro**: Proteção contra *Type Errors*, tratamento de exceções específico e validação de schemas.
 3.  **Manutenibilidade**: Código modular, tipado (`Type Hints`) e documentado.
 
+---
+
+## 🔬 Qualidade de Código e CI/CD
+
+Este projeto está configurado com um pipeline de Integração Contínua (CI/CD) no GitHub Actions que valida a qualidade de todo o código enviado. Para facilitar o desenvolvimento e garantir que o código esteja em conformidade *antes* do commit, configuramos hooks de pre-commit.
+
+### Ferramentas de Qualidade
+
+*   **Ruff**: Um linter e formatador de Python extremamente rápido, usado para garantir a aderência aos padrões da PEP 8, ordenar imports e corrigir problemas de estilo automaticamente.
+*   **MyPy**: Um checador de tipos estático que garante que todas as funções tenham anotações de tipo (`Type Hints`), prevenindo uma classe inteira de bugs em tempo de execução.
+*   **Bandit**: Uma ferramenta que verifica o código em busca de vulnerabilidades de segurança comuns.
+*   **pip-audit**: Audita as dependências do projeto em busca de pacotes com vulnerabilidades conhecidas.
+
+### Configuração do Ambiente de Desenvolvimento (Pré-requisito)
+
+Para que as verificações automáticas funcionem localmente, cada desenvolvedor deve configurar seu ambiente **uma única vez**:
+
+1.  **Instale todas as dependências (de projeto e de desenvolvimento):**
+    ```bash
+    pip install -r requirements.txt
+    pip install -r requirements-dev.txt
+    ```
+
+2.  **Ative os hooks de pre-commit no seu repositório local:**
+    ```bash
+    pre-commit install
+    ```
+
+Após estes passos, a cada tentativa de `git commit`, as ferramentas de qualidade serão executadas automaticamente. Se um erro for encontrado (e puder ser corrigido), o `pre-commit` fará a correção e o commit será interrompido. Basta adicionar os arquivos corrigidos (`git add .`) e tentar o commit novamente.
+
 ## ⚙️ Pipelines Ativos
 
 ### 1. Tratamento de Faturamentos Comerciais
 *Local: `/faturamento_comercial`*
-*Script: `etl_faturamento.py`*
+*Script: `src/etl_faturamento.py`*
 
 Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas planilhas do Google Sheets.
 *   **Input**: Links de exportação do Google Sheets.
@@ -69,10 +105,11 @@ Pipeline responsável por normalizar IDs de faturamento extraídos de múltiplas
     *   Limpeza de prefixos alfanuméricos (`SOL`, `B-`, `X-`).
     *   **Normalização Estrita**: Preenchimento com zeros à esquerda (`zfill`) para garantir IDs com **7 dígitos**.
     *   Deduplicação global de registros.
+*   **Output**: `data/processed/faturamentos_tratados.csv`.
 
 ### 2. Consolidação de Valores Executados
 *Local: `/faturamento_comercial`*
-*Script: `etl_valores_executados.py`*
+*Script: `src/etl_valores_executados.py`*
 
 Pipeline analítico para cálculo e consolidação financeira de serviços executados.
 *   **Input**: Relatórios `.XLS` anuais (2024-2026) e Tabelas Dimensão (`dim_Ct`, `dim_valor_servicos`).
@@ -81,11 +118,11 @@ Pipeline analítico para cálculo e consolidação financeira de serviços execu
     *   **Cálculo**: Quantidade * Valor Unitário.
     *   **Consolidação**: Agrupamento por Base Operacional e soma anual.
     *   **Limpeza**: Tratamento de nulos e conversão de textos para floats.
-*   **Output**: `faturamentos_executados_consolidado.csv`.
+*   **Output**: `data/processed/faturamentos_executados_consolidado.csv`.
 
 ### 3. Produtividade Comercial
 *Local: `/produtividade_comercial`*
-*Script: `etl_produtividade.py`*
+*Script: `src/etl_produtividade.py`*
 
 Pipeline consolidado para processamento de relatórios de produtividade (Notas de Serviço) extraídos do sistema legado.
 *   **Input**: Arquivos `.XLS` organizados por pastas de ano (`2024`, `2025`, `2026`).
@@ -96,7 +133,7 @@ Pipeline consolidado para processamento de relatórios de produtividade (Notas d
     *   **Padronização de Datas**: Unificação para formato `datetime`.
     *   **Mapeamento de Colunas**: Renomeação de campos técnicos para termos de negócio.
     *   **Classificação**: Identificação de vistorias via regex no "Nº do pedido".
-    *   **Output**: CSV UTF-8 SIG com separador ponto e vírgula.
+*   **Output**: `data/processed/produtividade_tratada.csv`.
 
 ### 4. Encerramento Técnico
 *Local: `/encerramento_tecnico`*
@@ -158,43 +195,33 @@ Ecossistema de pipelines para gestão de suprimentos e movimentação de materia
     *   **Consolidação Geral**: Cruzamento automático entre solicitações diretas e reservas técnicas para uma visão 360º do almoxarifado.
 *   **Output**: `data/processed/solicitacoes_consolidadas_geral.csv` e `fato_movimentacoes_itens.csv`.
 
-## 📦 Como Executar
+## 📦 Como Executar os Pipelines
 
-### Instalação das Dependências
-Para garantir que todas as bibliotecas necessárias estejam instaladas, execute o seguinte comando na raiz do projeto:
-```bash
-pip install -r requirements.txt
-```
-
-### Execução dos Pipelines
+Após configurar o ambiente de desenvolvimento (ver seção "Qualidade de Código e CI/CD"), você pode executar os pipelines individualmente a partir da raiz do projeto.
 
 **Faturamento (IDs):**
 ```bash
-cd faturamento_comercial
-python etl_faturamento.py
+python faturamento_comercial/src/etl_faturamento.py
 ```
 
 **Valores Executados:**
 ```bash
-cd faturamento_comercial
-python etl_valores_executados.py
+python faturamento_comercial/src/etl_valores_executados.py
 ```
 
 **Produtividade:**
 ```bash
-cd produtividade_comercial
-python etl_produtividade.py
+python produtividade_comercial/src/etl_produtividade.py
 ```
 
 **Encerramento Técnico:**
 ```bash
-cd encerramento_tecnico/src
-python etl_encerramento.py
+python encerramento_tecnico/src/etl_encerramento.py
 ```
 
 **Descontos de Segurança:**
 ```bash
-python descontos_segurança/src/etl_descontos.py
+python descontos_seguranca/src/etl_descontos.py
 ```
 
 **Clientes e Leitura:**
