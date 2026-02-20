@@ -1,8 +1,9 @@
-import pandas as pd
 import logging
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 
 # Configuração de Logging
 logging.basicConfig(

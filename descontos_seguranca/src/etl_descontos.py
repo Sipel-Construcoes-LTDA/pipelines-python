@@ -1,8 +1,9 @@
-import pandas as pd
-import os
 import logging
+import os
+from typing import Any, Dict, List
+
+import pandas as pd
 from thefuzz import process as fuzzy_process
-from typing import Dict, List, Any
 
 # Configuração básica de logging
 logging.basicConfig(
