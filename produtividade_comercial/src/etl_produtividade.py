@@ -1,9 +1,10 @@
-import pandas as pd
-import os
 import glob
-import re
 import logging
-from typing import List, Dict, Optional, Any
+import os
+import re
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 # Configuração de Logging
 logging.basicConfig(
