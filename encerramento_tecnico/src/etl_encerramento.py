@@ -80,6 +80,7 @@ COL_MAPPING: Dict[str, str] = {
 # Helper Functions
 # ==========================================
 
+
 def clean_currency(val: Any) -> float:
     """
     Cleans Brazilian currency strings (e.g., 'R$ 1.234,56') to float (1234.56).
@@ -87,61 +88,63 @@ def clean_currency(val: Any) -> float:
     """
     if pd.isna(val):
         return 0.0
-    
+
     s_val = str(val).strip()
     if not s_val:
         return 0.0
-        
+
     try:
         if 'R$' in s_val or ',' in s_val:
             s_val = s_val.replace('R$', '').replace(' ', '')
-            s_val = s_val.replace('.', '') # Remove thousand separator
-            s_val = s_val.replace(',', '.') # Replace decimal separator
-        
+            s_val = s_val.replace('.', '')  # Remove thousand separator
+            s_val = s_val.replace(',', '.')  # Replace decimal separator
+
         return float(s_val)
     except Exception:
         return 0.0
+
 
 def load_google_sheet(key: str) -> pd.DataFrame:
     config = SHEETS_MAP.get(key)
     if not config:
         logger.error(f"Configuration key '{key}' not found in SHEETS_MAP.")
         return pd.DataFrame()
-        
+
     try:
         logger.info(f"Downloading {key}...")
         response = requests.get(config['url'])
         response.raise_for_status()
-        
+
         content_str = response.content.decode('utf-8')
         lines = content_str.splitlines()
-        
+
         header_row = 0
         search_term = "PROJETO"
-        
+
         for i, line in enumerate(lines[:20]):
             if search_term.upper() in line.upper():
                 header_row = i
                 break
-        
+
         if header_row > 0:
             logger.info(f"Found header for {key} at row {header_row}")
-            
+
         df = pd.read_csv(io.StringIO(content_str), header=header_row)
         df.columns = df.columns.astype(str).str.strip()
-        
+
         if 'PROJETO' not in df.columns:
-             for col in df.columns:
-                 if 'PROJETO' in col.upper():
-                     df.rename(columns={col: 'PROJETO'}, inplace=True)
-                     break
-        
+            for col in df.columns:
+                if 'PROJETO' in col.upper():
+                    df.rename(columns={col: 'PROJETO'}, inplace=True)
+                    break
+
         df = df.loc[:, ~df.columns.duplicated()]
         df['COORD'] = config['coord']
         return df
     except Exception as e:
         logger.error(f"Error loading {key}: {e}")
         return pd.DataFrame()
+
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     new_cols = {}
@@ -157,6 +160,7 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
             new_cols[col] = clean_col
     return df.rename(columns=new_cols)
 
+
 def find_header_row(file_path: str, search_term: str = "PROJETO", max_rows: int = 15) -> int:
     """Finds the row index containing the search term."""
     try:
@@ -165,30 +169,33 @@ def find_header_row(file_path: str, search_term: str = "PROJETO", max_rows: int 
             if row.astype(str).str.contains(search_term, case=False, regex=False).any():
                 return idx
     except Exception as e:
-        logger.error(f"Error finding header in {os.path.basename(file_path)}: {e}")
+        logger.error(
+            f"Error finding header in {os.path.basename(file_path)}: {e}")
     return 0
+
 
 def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_offset: int = 0) -> pd.DataFrame:
     """Loads excel finding the header row dynamically."""
     if not os.path.exists(file_path):
         logger.warning(f"File not found: {file_path}")
         return pd.DataFrame()
-    
+
     header_idx = find_header_row(file_path, search_term)
     actual_header = header_idx + sub_header_offset
-    
+
     try:
         df = pd.read_excel(file_path, header=actual_header)
-        
+
         if sub_header_offset > 0:
-            df_search = pd.read_excel(file_path, header=None, nrows=header_idx + 1)
+            df_search = pd.read_excel(
+                file_path, header=None, nrows=header_idx + 1)
             search_row = df_search.iloc[header_idx]
             proj_col_idx = -1
             for i, val in enumerate(search_row):
                 if str(val).strip().upper() == search_term:
                     proj_col_idx = i
                     break
-            
+
             if proj_col_idx != -1:
                 current_col_name = df.columns[proj_col_idx]
                 df.rename(columns={current_col_name: 'PROJETO'}, inplace=True)
@@ -202,6 +209,8 @@ def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_of
 # ==========================================
 # Main Processing Logic
 # ==========================================
+
+
 def is_garbage_column(col_name: Any) -> bool:
     s_col = str(col_name).strip()
     if s_col.lower().startswith('unnamed'):
@@ -212,11 +221,13 @@ def is_garbage_column(col_name: Any) -> bool:
         return True
     return False
 
+
 def extract_project(val: Any) -> Optional[str]:
     if pd.isna(val):
         return None
     parts = str(val).split('-')
     return parts[-1].strip() if len(parts) > 1 else str(val).strip()
+
 
 def calc_pendencies(row: pd.Series) -> str:
     pends: List[str] = []
@@ -236,7 +247,7 @@ def calc_pendencies(row: pd.Series) -> str:
         pends.append("GSE solicitado")
     elif g in ["Vazio", None, "", "Não Enviado"]:
         pends.append("GSE Não solicitado")
-    
+
     # ATESTO
     a = row.get('ATESTO')
     if a == "Não enviado":
@@ -260,8 +271,8 @@ def calc_pendencies(row: pd.Series) -> str:
         pends.append("Pendente solicitar reserva")
 
     if pd.isna(row.get('ENTRADA')) or row.get('ENTRADA') == "":
-         pends.append('Pendente "As Built"')
-    
+        pends.append('Pendente "As Built"')
+
     e = row.get('EVIDENCIAS BOOK')
     if e == "EVIDENCIA INSU. - GPM":
         pends.append("Evidencias insuficientes")
@@ -270,11 +281,12 @@ def calc_pendencies(row: pd.Series) -> str:
 
     return ", ".join(pends) if pends else "Sem pendência"
 
+
 def calc_cycle(row: pd.Series) -> Optional[datetime.date]:
-    months_pt: Dict[int, str] = {1:'Janeiro', 2:'Fevereiro', 3:'Março', 4:'Abril', 5:'Maio', 6:'Junho',
-                                 7:'Julho', 8:'Agosto', 9:'Setembro', 10:'Outubro', 11:'Novembro', 12:'Dezembro'}
+    months_pt: Dict[int, str] = {1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho',
+                                 7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'}
     inv_months: Dict[str, int] = {v: k for k, v in months_pt.items()}
-    
+
     mes_nome = row.get('CICLO DE POSTAGEM')
     mes_num = inv_months.get(mes_nome)
     if not mes_num:
@@ -289,22 +301,22 @@ def calc_cycle(row: pd.Series) -> Optional[datetime.date]:
     dt_baixa = row.get('DT. BAIXA')
     try:
         if not pd.isna(dt_baixa):
-             dt_val = pd.to_datetime(dt_baixa)
-             ano_base = dt_val.year
+            dt_val = pd.to_datetime(dt_baixa)
+            ano_base = dt_val.year
         else:
-             ano_base = datetime.datetime.now().year
+            ano_base = datetime.datetime.now().year
     except Exception:
         ano_base = datetime.datetime.now().year
-        
+
     dt = datetime.date(ano_base, mes_num, 1)
     if dt > datetime.date.today():
-         dt = datetime.date(ano_base - 1, mes_num, 1)
+        dt = datetime.date(ano_base - 1, mes_num, 1)
     return dt
 
 
 def main() -> None:
     logger.info("Starting ETL Process...")
-    
+
     # 1. Load Google Sheets
     dfs: List[pd.DataFrame] = []
     for key in SHEETS_MAP.keys():
@@ -313,22 +325,24 @@ def main() -> None:
             df = normalize_columns(df)
             df = df.loc[:, ~df.columns.duplicated()]
             dfs.append(df)
-    
+
     if not dfs:
         logger.error("No data loaded. Exiting.")
         return
 
     main_df = pd.concat(dfs, ignore_index=True)
-    
+
     # --- CLEANING COLUMNS & ROWS ---
     if 'PROJETO' in main_df.columns:
         initial_rows = len(main_df)
         main_df = main_df.dropna(subset=['PROJETO'])
         main_df = main_df[main_df['PROJETO'].astype(str).str.strip() != '']
-        logger.info(f"Dropped {initial_rows - len(main_df)} empty/invalid rows based on 'PROJETO'.")
+        logger.info(
+            f"Dropped {initial_rows - len(main_df)} empty/invalid rows based on 'PROJETO'.")
 
     cols_to_drop = ['OBS. GSE', 'RESERVAS APP', 'Coluna 1']
-    main_df.drop(columns=[c for c in cols_to_drop if c in main_df.columns], inplace=True)
+    main_df.drop(
+        columns=[c for c in cols_to_drop if c in main_df.columns], inplace=True)
 
     cols_to_remove = [c for c in main_df.columns if is_garbage_column(c)]
     if cols_to_remove:
@@ -336,12 +350,13 @@ def main() -> None:
         main_df.drop(columns=cols_to_remove, inplace=True)
 
     main_df.dropna(axis=1, how='all', inplace=True)
-    
+
     for coord in main_df['COORD'].unique():
         regional_df = main_df[main_df['COORD'] == coord]
         safe_name = str(coord).lower().replace(' ', '_')
         output_regional = os.path.join(PROCESSED_DIR, f'aux_{safe_name}.csv')
-        regional_df.to_csv(output_regional, index=False, sep=';', decimal=',', encoding='utf-8-sig')
+        regional_df.to_csv(output_regional, index=False,
+                           sep=';', decimal=',', encoding='utf-8-sig')
 
     # 2. Transformations
     fill_values: Dict[str, str] = {
@@ -360,7 +375,7 @@ def main() -> None:
     }
     main_df['GEOEX'] = main_df['GEOEX'].replace(geoex_replacements)
     main_df['PROJETO_FATO'] = main_df['PROJETO'].apply(extract_project)
-    
+
     numeric_cols: List[str] = [
         'VALOR MAO DE OBRA LV', 'VALOR Á FATURAR LM', 'VALOR Á FATURAR DISTRI. DE POSTES',
         'VALOR PENDENTE FATURAR', 'VALOR PROJETO'
@@ -368,80 +383,99 @@ def main() -> None:
     for col in numeric_cols:
         if col in main_df.columns:
             main_df[col] = main_df[col].apply(clean_currency)
-    
+
     if 'POSTES' in main_df.columns:
-        main_df['POSTES'] = pd.to_numeric(main_df['POSTES'], errors='coerce').fillna(0).astype(int)
+        main_df['POSTES'] = pd.to_numeric(
+            main_df['POSTES'], errors='coerce').fillna(0).astype(int)
 
     # 3. Pendencies
     main_df['Descrição de pendencias'] = main_df.apply(calc_pendencies, axis=1)
 
     # 4. Cycle Logic
-    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].astype(str).str.strip().str.title()
+    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].astype(
+        str).str.strip().str.title()
     current_month_pt = datetime.datetime.now().strftime('%B')
-    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].replace({'Não Postado': current_month_pt})
+    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].replace(
+        {'Não Postado': current_month_pt})
 
     # 5. Aux Data Joins
     logger.info("Loading Auxiliary Data...")
-    
+
     aux_online_path = os.path.join(AUX_DIR, 'aux_encerramento_online.xlsx')
-    aux_online = load_excel_smart(aux_online_path, search_term="PROJETO", sub_header_offset=1)
-    
+    aux_online = load_excel_smart(
+        aux_online_path, search_term="PROJETO", sub_header_offset=1)
+
     if not aux_online.empty:
-        aux_online['PROJETO_FATO'] = aux_online['PROJETO'].apply(extract_project)
-        target_cols: List[str] = ['PROJETO_FATO', 'STATUS', 'CONSISTÊNCIA', 'DT. ACEITO']
+        aux_online['PROJETO_FATO'] = aux_online['PROJETO'].apply(
+            extract_project)
+        target_cols: List[str] = ['PROJETO_FATO',
+                                  'STATUS', 'CONSISTÊNCIA', 'DT. ACEITO']
         if 'ANÁLISE 01' in aux_online.columns:
             target_cols.append('ANÁLISE 01')
         if 'DT DIREC.' in aux_online.columns:
             target_cols.append('DT DIREC.')
-        
-        dt_anali = [c for c in aux_online.columns if 'DT.' in c and 'ANALI' in c]
+
+        dt_anali = [
+            c for c in aux_online.columns if 'DT.' in c and 'ANALI' in c]
         if dt_anali:
             col_name = dt_anali[-1]
             aux_online['DT. ANALI._2'] = aux_online[col_name]
             target_cols.append('DT. ANALI._2')
-            
+
         final_cols = [c for c in target_cols if c in aux_online.columns]
-        aux_online = aux_online[final_cols].drop_duplicates(subset=['PROJETO_FATO'])
-        
-        main_df = pd.merge(main_df, aux_online, on='PROJETO_FATO', how='left', suffixes=('', '_Online'))
+        aux_online = aux_online[final_cols].drop_duplicates(
+            subset=['PROJETO_FATO'])
+
+        main_df = pd.merge(main_df, aux_online, on='PROJETO_FATO',
+                           how='left', suffixes=('', '_Online'))
         if 'STATUS' in main_df.columns:
             main_df['STATUS'] = main_df['STATUS'].fillna("NÃO CRIADO")
 
     aux_gse_path = os.path.join(AUX_DIR, 'aux_gse.xlsx')
-    aux_gse = load_excel_smart(aux_gse_path, search_term="PROJETO", sub_header_offset=0)
-    
+    aux_gse = load_excel_smart(
+        aux_gse_path, search_term="PROJETO", sub_header_offset=0)
+
     if not aux_gse.empty:
         aux_gse['PROJETO_FATO'] = aux_gse['PROJETO'].apply(extract_project)
-        gse_cols: List[str] = ['PROJETO_FATO', 'USUÁRIO/SOLIC.', 'DT. SOLIC.', 'DT. STATUS', 'STATUS']
+        gse_cols: List[str] = ['PROJETO_FATO', 'USUÁRIO/SOLIC.',
+                               'DT. SOLIC.', 'DT. STATUS', 'STATUS']
         final_gse_cols = [c for c in gse_cols if c in aux_gse.columns]
-        aux_gse = aux_gse[final_gse_cols].drop_duplicates(subset=['PROJETO_FATO'])
-        
-        main_df = pd.merge(main_df, aux_gse, on='PROJETO_FATO', how='left', suffixes=('', '_GSE'))
-        if 'STATUS_GSE' in main_df.columns:
-             main_df.rename(columns={'STATUS_GSE': 'AuxGSE.STATUS'}, inplace=True)
-             main_df['AuxGSE.STATUS'] = main_df['AuxGSE.STATUS'].fillna("N/A")
+        aux_gse = aux_gse[final_gse_cols].drop_duplicates(
+            subset=['PROJETO_FATO'])
 
-    pastas_files = [f for f in os.listdir(AUX_DIR) if 'aux_pastas_aceitas' in f.lower() and f.endswith('.xlsx')]
+        main_df = pd.merge(main_df, aux_gse, on='PROJETO_FATO',
+                           how='left', suffixes=('', '_GSE'))
+        if 'STATUS_GSE' in main_df.columns:
+            main_df.rename(
+                columns={'STATUS_GSE': 'AuxGSE.STATUS'}, inplace=True)
+            main_df['AuxGSE.STATUS'] = main_df['AuxGSE.STATUS'].fillna("N/A")
+
+    pastas_files = [f for f in os.listdir(
+        AUX_DIR) if 'aux_pastas_aceitas' in f.lower() and f.endswith('.xlsx')]
     logger.info(f"Found {len(pastas_files)} Pastas Aceitas files.")
-    
+
     dfs_pastas: List[pd.DataFrame] = []
     for f in pastas_files:
         p_path = os.path.join(AUX_DIR, f)
         df_p = load_excel_smart(p_path, search_term="PROJETO")
         if not df_p.empty and 'DT. BAIXA' in df_p.columns and 'PROJETO' in df_p.columns:
             dfs_pastas.append(df_p[['PROJETO', 'DT. BAIXA']])
-    
+
     if dfs_pastas:
         aux_pastas = pd.concat(dfs_pastas, ignore_index=True)
-        aux_pastas['PROJETO_FATO'] = aux_pastas['PROJETO'].apply(extract_project)
+        aux_pastas['PROJETO_FATO'] = aux_pastas['PROJETO'].apply(
+            extract_project)
         aux_pastas = aux_pastas.drop_duplicates(subset=['PROJETO_FATO'])
-        main_df = pd.merge(main_df, aux_pastas[['PROJETO_FATO', 'DT. BAIXA']], on='PROJETO_FATO', how='left')
+        main_df = pd.merge(
+            main_df, aux_pastas[['PROJETO_FATO', 'DT. BAIXA']], on='PROJETO_FATO', how='left')
 
     main_df['Data do Ciclo'] = main_df.apply(calc_cycle, axis=1)
 
     output_path = os.path.join(PROCESSED_DIR, 'faturamentos_encerramento.csv')
-    main_df.to_csv(output_path, index=False, sep=';', decimal=',', encoding='utf-8-sig')
+    main_df.to_csv(output_path, index=False, sep=';',
+                   decimal=',', encoding='utf-8-sig')
     logger.info(f"Pipeline complete. Saved to {output_path}")
+
 
 if __name__ == "__main__":
     main()
