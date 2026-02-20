@@ -1,0 +1,7 @@
+# Ferramentas de Qualidade e Desenvolvimento (SIPEL)
+ruff==0.9.6
+mypy==1.15.0
+bandit==1.8.2
+pip-audit==2.8.2
+pandas-stubs  # Ajuda o Mypy com tipos do Pandas
+types-openpyxl

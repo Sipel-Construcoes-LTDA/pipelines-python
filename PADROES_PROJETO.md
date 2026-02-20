@@ -78,12 +78,16 @@ nome_do_pipeline/
 
 ---
 
-## 6. Workflow de Versionamento
+## 6. Workflow de Versionamento e CI/CD
 *   **Commits Semânticos**: Mensagens claras e objetivas.
     *   `feat`: Nova funcionalidade de extração.
     *   `fix`: Correção de bug na transformação.
     *   `refactor`: Melhoria de performance sem alterar output.
-*   **Branching**: Desenvolva em branches específicas (ex: `feature/ajuste-sharepoint`) e solicite code review.
+*   **Integração Contínua (CI)**: Todo Pull Request para `main` dispara validações automáticas:
+    *   **Ruff**: Valida PEP 8 e impede o uso de `print()`.
+    *   **Mypy**: Valida a obrigatoriedade de Type Hinting.
+    *   **Bandit & Pip-audit**: Verificam falhas de segurança no código e dependências.
+*   **Branching**: Desenvolva em branches específicas (ex: `feature/ajuste-sharepoint`) e solicite code review. O PR só poderá ser mergeado se o pipeline de CI estiver verde.
 
 ---
 **Dúvidas?** Consulte o arquivo `GEMINI.md` para entender as diretrizes de IA ou procure o responsável pelo repositório.

@@ -1,0 +1,49 @@
+name: CI - SIPEL Data Pipelines
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quality-assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Quality Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy bandit pip-audit
+
+      - name: Install Project Dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lint with Ruff (Style & Prints)
+        run: |
+          # E/F/W: PEP8, I: Import Sort, T20: Prohibit print()
+          ruff check . --select E,F,W,I,T20 --ignore E501 --exclude "debug_env.py,node_modules"
+
+      - name: Static Type Checking (Mypy)
+        run: |
+          # Garante que a regra de Type Hinting do PADROES_PROJETO.md seja cumprida
+          mypy . --ignore-missing-imports --disallow-untyped-defs --exclude "(node_modules|.venv|debug_env.py)"
+
+      - name: Security Scanning (Bandit)
+        run: |
+          # Checa vulnerabilidades comuns e segredos expostos no código
+          bandit -r . -ll -ii --exclude "./node_modules,./.venv"
+
+      - name: Dependency Audit (pip-audit)
+        run: |
+          # Verifica se as libs no requirements.txt possuem CVEs conhecidas
+          pip-audit
