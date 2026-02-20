@@ -1,10 +1,11 @@
-import pandas as pd
-import requests
 import io
-import re
 import logging
 import os
-from typing import List, Optional, Any
+import re
+from typing import Any, List, Optional
+
+import pandas as pd
+import requests
 
 # Configuração de Logging
 logging.basicConfig(
