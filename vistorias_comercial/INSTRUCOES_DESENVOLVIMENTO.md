@@ -26,7 +26,7 @@ Para ler planilhas do Google sem APIs complexas, altere o final da URL para expo
 ### A. vistorias_bonfim
 1.  **Leitura:** Use `pd.read_csv(url_bonfim)`.
 2.  **Tipagem:** Converta `NOTA` para inteiro. Use `pd.to_datetime()` para `PRAZO DA NOTA` e `DATA DO CONTATO`.
-3.  **Renomeação:** 
+3.  **Renomeação:**
     - `COLABORADOR` -> `RESPONSAVEL`
     - `STATUS` -> `CONFORMIDADE`
     - `CONFORMIDADE` -> `STATUS` (Inversão solicitada)

@@ -8,22 +8,30 @@ from typing import List, Optional, Any
 
 # Configuração de Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # --- Configurações & Constantes ---
 SPREADSHEET_ID: str = "1RbdE7CPmHrV3Z-HsWHVY2UfWBD-SlBDmknCfI6V0BfA"
 GIDS: List[str] = [
-    "604361021", "1090094802", "85077049", "1927088907", "0",
-    "563947352", "1410869809", "1540399676", "2071167239",
-    "203226281", "516940634", "1296316494"
+    "604361021",
+    "1090094802",
+    "85077049",
+    "1927088907",
+    "0",
+    "563947352",
+    "1410869809",
+    "1540399676",
+    "2071167239",
+    "203226281",
+    "516940634",
+    "1296316494",
 ]
 # O diretório de saída agora é relativo ao script, dentro de data/processed
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(BASE_DIR, 'data', 'processed')
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'faturamentos_tratados.csv')
+OUTPUT_DIR = os.path.join(BASE_DIR, "data", "processed")
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "faturamentos_tratados.csv")
 
 
 def clean_value(val: Any) -> Optional[str]:
@@ -36,7 +44,7 @@ def clean_value(val: Any) -> Optional[str]:
     s_val = str(val).strip().upper()
 
     # Remover Prefixos (B-, X-, Y-, SOL, etc) e manter apenas dígitos
-    digits_only = re.sub(r'\D', '', s_val)
+    digits_only = re.sub(r"\D", "", s_val)
 
     if not digits_only:
         return None
@@ -66,8 +74,7 @@ def fetch_and_process(gid: str) -> pd.DataFrame:
             return pd.DataFrame()
 
         raw_series = df.iloc[:, 1]
-        cleaned_series = raw_series.apply(
-            clean_value).dropna().drop_duplicates()
+        cleaned_series = raw_series.apply(clean_value).dropna().drop_duplicates()
 
         count = len(cleaned_series)
         logger.info(f"GID {gid}: {count} registros encontrados.")
@@ -75,7 +82,7 @@ def fetch_and_process(gid: str) -> pd.DataFrame:
         if count == 0:
             return pd.DataFrame()
 
-        ret_df = pd.DataFrame({'ID_EXTRAIDO': cleaned_series})
+        ret_df = pd.DataFrame({"ID_EXTRAIDO": cleaned_series})
         return ret_df
 
     except Exception as e:
@@ -96,7 +103,8 @@ def main() -> None:
         df_part = fetch_and_process(gid)
         if not df_part.empty:
             logger.info(
-                f"GID {gid} -> Adicionando {len(df_part)} linhas ao dataset principal.")
+                f"GID {gid} -> Adicionando {len(df_part)} linhas ao dataset principal."
+            )
             all_data.append(df_part)
         else:
             logger.info(f"GID {gid} -> DataFrame vazio.")
@@ -107,8 +115,7 @@ def main() -> None:
         final_df = final_df.drop_duplicates()
         final_count = len(final_df)
 
-        logger.info(
-            f"Total Bruto: {initial_count} | Total Único: {final_count}")
+        logger.info(f"Total Bruto: {initial_count} | Total Único: {final_count}")
 
         final_df.to_csv(OUTPUT_FILE, index=False)
         logger.info(f"ARQUIVO GERADO: {OUTPUT_FILE}")

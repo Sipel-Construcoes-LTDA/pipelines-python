@@ -15,15 +15,15 @@ from typing import Any, Dict, List, Optional
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
 BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR: str = os.path.join(BASE_DIR, 'data')
-AUX_DIR: str = os.path.join(DATA_DIR, 'auxiliary')
-PROCESSED_DIR: str = os.path.join(DATA_DIR, 'processed')
+DATA_DIR: str = os.path.join(BASE_DIR, "data")
+AUX_DIR: str = os.path.join(DATA_DIR, "auxiliary")
+PROCESSED_DIR: str = os.path.join(DATA_DIR, "processed")
 
 # Create directories
 os.makedirs(AUX_DIR, exist_ok=True)
@@ -31,49 +31,49 @@ os.makedirs(PROCESSED_DIR, exist_ok=True)
 
 # Google Sheets URLs
 SHEETS_MAP: Dict[str, Dict[str, str]] = {
-    'jacobina': {
-        'url': 'https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=576710224',
-        'coord': 'JACOBINA'
+    "jacobina": {
+        "url": "https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=576710224",
+        "coord": "JACOBINA",
     },
-    'bonfim_fechamento': {
-        'url': 'https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=1425364438',
-        'coord': 'SENHOR DO BONFIM'
+    "bonfim_fechamento": {
+        "url": "https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=1425364438",
+        "coord": "SENHOR DO BONFIM",
     },
-    'bonfim_aceitas': {
-        'url': 'https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=1712361722',
-        'coord': 'SENHOR DO BONFIM'
+    "bonfim_aceitas": {
+        "url": "https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=1712361722",
+        "coord": "SENHOR DO BONFIM",
     },
-    'bonfim_enviadas': {
-        'url': 'https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=800691815',
-        'coord': 'SENHOR DO BONFIM'
+    "bonfim_enviadas": {
+        "url": "https://docs.google.com/spreadsheets/d/14YrO2leP08ddPMh1vx0WFT2oLqWiBDDAe6qlUNpYV2M/export?format=csv&gid=800691815",
+        "coord": "SENHOR DO BONFIM",
     },
-    'juazeiro_aceitas': {
-        'url': 'https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=824978689',
-        'coord': 'JUAZEIRO'
+    "juazeiro_aceitas": {
+        "url": "https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=824978689",
+        "coord": "JUAZEIRO",
     },
-    'juazeiro_enviadas': {
-        'url': 'https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=190048177',
-        'coord': 'JUAZEIRO'
+    "juazeiro_enviadas": {
+        "url": "https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=190048177",
+        "coord": "JUAZEIRO",
     },
-    'juazeiro_fechamento': {
-        'url': 'https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=1413339852',
-        'coord': 'JUAZEIRO'
-    }
+    "juazeiro_fechamento": {
+        "url": "https://docs.google.com/spreadsheets/d/1uO47jaWHLg1aNnRyTytP4DI7kcoTc2pyywZAK2IkH6U/export?format=csv&gid=1413339852",
+        "coord": "JUAZEIRO",
+    },
 }
 
 COL_MAPPING: Dict[str, str] = {
-    r'(?i)VALOR\s*L\.?.V.?.?': 'VALOR MAO DE OBRA LV',
-    r'(?i)VALOR\s*Á\s*FATURAR\s*LV': 'VALOR MAO DE OBRA LV',
-    r'(?i)VALOR\s*MAO\s*DE\s*OBRA$': 'VALOR Á FATURAR LM',
-    r'(?i)VALOR\s*L\.?.M': 'VALOR Á FATURAR LM',
-    r'(?i)VALOR\s*Á\s*FATURAR\s*LM': 'VALOR Á FATURAR LM',
+    r"(?i)VALOR\s*L\.?.V.?.?": "VALOR MAO DE OBRA LV",
+    r"(?i)VALOR\s*Á\s*FATURAR\s*LV": "VALOR MAO DE OBRA LV",
+    r"(?i)VALOR\s*MAO\s*DE\s*OBRA$": "VALOR Á FATURAR LM",
+    r"(?i)VALOR\s*L\.?.M": "VALOR Á FATURAR LM",
+    r"(?i)VALOR\s*Á\s*FATURAR\s*LM": "VALOR Á FATURAR LM",
     # More flexible regex to avoid encoding issues with Ç and Ã
-    r'(?i)DISTRIBUI.*DE\s*POSTE': 'VALOR Á FATURAR DISTRI. DE POSTES',
-    r'(?i)ENTRADA\s*FECHAMENTO': 'ENTRADA',
-    r'(?i)DT\s*DE\s*ENT\.\s*DE\s*AS\s*BUILT': 'ENTRADA',
-    r'(?i)SUPERVISOR\s*/\s*TURMA': 'SUPERVISOR',
-    r'(?i)CADASTRO': 'ESTAGIÁRIO',
-    r'(?i)Ano': 'ANO'
+    r"(?i)DISTRIBUI.*DE\s*POSTE": "VALOR Á FATURAR DISTRI. DE POSTES",
+    r"(?i)ENTRADA\s*FECHAMENTO": "ENTRADA",
+    r"(?i)DT\s*DE\s*ENT\.\s*DE\s*AS\s*BUILT": "ENTRADA",
+    r"(?i)SUPERVISOR\s*/\s*TURMA": "SUPERVISOR",
+    r"(?i)CADASTRO": "ESTAGIÁRIO",
+    r"(?i)Ano": "ANO",
 }
 
 # ==========================================
@@ -94,10 +94,10 @@ def clean_currency(val: Any) -> float:
         return 0.0
 
     try:
-        if 'R$' in s_val or ',' in s_val:
-            s_val = s_val.replace('R$', '').replace(' ', '')
-            s_val = s_val.replace('.', '')  # Remove thousand separator
-            s_val = s_val.replace(',', '.')  # Replace decimal separator
+        if "R$" in s_val or "," in s_val:
+            s_val = s_val.replace("R$", "").replace(" ", "")
+            s_val = s_val.replace(".", "")  # Remove thousand separator
+            s_val = s_val.replace(",", ".")  # Replace decimal separator
 
         return float(s_val)
     except Exception:
@@ -112,10 +112,10 @@ def load_google_sheet(key: str) -> pd.DataFrame:
 
     try:
         logger.info(f"Downloading {key}...")
-        response = requests.get(config['url'])
+        response = requests.get(config["url"])
         response.raise_for_status()
 
-        content_str = response.content.decode('utf-8')
+        content_str = response.content.decode("utf-8")
         lines = content_str.splitlines()
 
         header_row = 0
@@ -132,14 +132,14 @@ def load_google_sheet(key: str) -> pd.DataFrame:
         df = pd.read_csv(io.StringIO(content_str), header=header_row)
         df.columns = df.columns.astype(str).str.strip()
 
-        if 'PROJETO' not in df.columns:
+        if "PROJETO" not in df.columns:
             for col in df.columns:
-                if 'PROJETO' in col.upper():
-                    df.rename(columns={col: 'PROJETO'}, inplace=True)
+                if "PROJETO" in col.upper():
+                    df.rename(columns={col: "PROJETO"}, inplace=True)
                     break
 
         df = df.loc[:, ~df.columns.duplicated()]
-        df['COORD'] = config['coord']
+        df["COORD"] = config["coord"]
         return df
     except Exception as e:
         logger.error(f"Error loading {key}: {e}")
@@ -161,7 +161,9 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=new_cols)
 
 
-def find_header_row(file_path: str, search_term: str = "PROJETO", max_rows: int = 15) -> int:
+def find_header_row(
+    file_path: str, search_term: str = "PROJETO", max_rows: int = 15
+) -> int:
     """Finds the row index containing the search term."""
     try:
         df_preview = pd.read_excel(file_path, header=None, nrows=max_rows)
@@ -169,12 +171,13 @@ def find_header_row(file_path: str, search_term: str = "PROJETO", max_rows: int 
             if row.astype(str).str.contains(search_term, case=False, regex=False).any():
                 return idx
     except Exception as e:
-        logger.error(
-            f"Error finding header in {os.path.basename(file_path)}: {e}")
+        logger.error(f"Error finding header in {os.path.basename(file_path)}: {e}")
     return 0
 
 
-def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_offset: int = 0) -> pd.DataFrame:
+def load_excel_smart(
+    file_path: str, search_term: str = "PROJETO", sub_header_offset: int = 0
+) -> pd.DataFrame:
     """Loads excel finding the header row dynamically."""
     if not os.path.exists(file_path):
         logger.warning(f"File not found: {file_path}")
@@ -187,8 +190,7 @@ def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_of
         df = pd.read_excel(file_path, header=actual_header)
 
         if sub_header_offset > 0:
-            df_search = pd.read_excel(
-                file_path, header=None, nrows=header_idx + 1)
+            df_search = pd.read_excel(file_path, header=None, nrows=header_idx + 1)
             search_row = df_search.iloc[header_idx]
             proj_col_idx = -1
             for i, val in enumerate(search_row):
@@ -198,13 +200,14 @@ def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_of
 
             if proj_col_idx != -1:
                 current_col_name = df.columns[proj_col_idx]
-                df.rename(columns={current_col_name: 'PROJETO'}, inplace=True)
+                df.rename(columns={current_col_name: "PROJETO"}, inplace=True)
 
-        df.columns = df.columns.astype(str).str.replace('\n', ' ').str.strip()
+        df.columns = df.columns.astype(str).str.replace("\n", " ").str.strip()
         return df
     except Exception as e:
         logger.error(f"Error loading {os.path.basename(file_path)}: {e}")
         return pd.DataFrame()
+
 
 # ==========================================
 # Main Processing Logic
@@ -213,11 +216,11 @@ def load_excel_smart(file_path: str, search_term: str = "PROJETO", sub_header_of
 
 def is_garbage_column(col_name: Any) -> bool:
     s_col = str(col_name).strip()
-    if s_col.lower().startswith('unnamed'):
+    if s_col.lower().startswith("unnamed"):
         return True
-    if re.search(r'^\d{1,3}(?:\.\d{3})*(?:,\d+)?$', s_col):
+    if re.search(r"^\d{1,3}(?:\.\d{3})*(?:,\d+)?$", s_col):
         return True
-    if 'R$' in s_col:
+    if "R$" in s_col:
         return True
     return False
 
@@ -225,14 +228,14 @@ def is_garbage_column(col_name: Any) -> bool:
 def extract_project(val: Any) -> Optional[str]:
     if pd.isna(val):
         return None
-    parts = str(val).split('-')
+    parts = str(val).split("-")
     return parts[-1].strip() if len(parts) > 1 else str(val).strip()
 
 
 def calc_pendencies(row: pd.Series) -> str:
     pends: List[str] = []
     # GSE
-    g = row.get('GSE')
+    g = row.get("GSE")
     if g in ["Desenhado"]:
         pends.append("Pendente conciliar")
     elif g in ["Em desenho"]:
@@ -249,7 +252,7 @@ def calc_pendencies(row: pd.Series) -> str:
         pends.append("GSE Não solicitado")
 
     # ATESTO
-    a = row.get('ATESTO')
+    a = row.get("ATESTO")
     if a == "Não enviado":
         pends.append("Pendente enviar atesto")
     elif a == "Solicitado":
@@ -258,7 +261,7 @@ def calc_pendencies(row: pd.Series) -> str:
         pends.append("Atesto não solicitado")
 
     # RESERVAS
-    r = row.get('RESERVAS')
+    r = row.get("RESERVAS")
     if r == "Almoxarifado":
         pends.append("Pendencia no almoxarifado")
     elif r == "Consistindo":
@@ -270,10 +273,10 @@ def calc_pendencies(row: pd.Series) -> str:
     elif r == "Vazio":
         pends.append("Pendente solicitar reserva")
 
-    if pd.isna(row.get('ENTRADA')) or row.get('ENTRADA') == "":
+    if pd.isna(row.get("ENTRADA")) or row.get("ENTRADA") == "":
         pends.append('Pendente "As Built"')
 
-    e = row.get('EVIDENCIAS BOOK')
+    e = row.get("EVIDENCIAS BOOK")
     if e == "EVIDENCIA INSU. - GPM":
         pends.append("Evidencias insuficientes")
     elif e == "S/EVIDENCIA- GPM":
@@ -283,22 +286,34 @@ def calc_pendencies(row: pd.Series) -> str:
 
 
 def calc_cycle(row: pd.Series) -> Optional[datetime.date]:
-    months_pt: Dict[int, str] = {1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho',
-                                 7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'}
+    months_pt: Dict[int, str] = {
+        1: "Janeiro",
+        2: "Fevereiro",
+        3: "Março",
+        4: "Abril",
+        5: "Maio",
+        6: "Junho",
+        7: "Julho",
+        8: "Agosto",
+        9: "Setembro",
+        10: "Outubro",
+        11: "Novembro",
+        12: "Dezembro",
+    }
     inv_months: Dict[str, int] = {v: k for k, v in months_pt.items()}
 
-    mes_nome = row.get('CICLO DE POSTAGEM')
+    mes_nome = row.get("CICLO DE POSTAGEM")
     mes_num = inv_months.get(mes_nome)
     if not mes_num:
         return None
 
     try:
-        if not pd.isna(row.get('ANO')):
-            return datetime.date(int(row['ANO']), mes_num, 1)
+        if not pd.isna(row.get("ANO")):
+            return datetime.date(int(row["ANO"]), mes_num, 1)
     except Exception:
         pass
 
-    dt_baixa = row.get('DT. BAIXA')
+    dt_baixa = row.get("DT. BAIXA")
     try:
         if not pd.isna(dt_baixa):
             dt_val = pd.to_datetime(dt_baixa)
@@ -333,147 +348,177 @@ def main() -> None:
     main_df = pd.concat(dfs, ignore_index=True)
 
     # --- CLEANING COLUMNS & ROWS ---
-    if 'PROJETO' in main_df.columns:
+    if "PROJETO" in main_df.columns:
         initial_rows = len(main_df)
-        main_df = main_df.dropna(subset=['PROJETO'])
-        main_df = main_df[main_df['PROJETO'].astype(str).str.strip() != '']
+        main_df = main_df.dropna(subset=["PROJETO"])
+        main_df = main_df[main_df["PROJETO"].astype(str).str.strip() != ""]
         logger.info(
-            f"Dropped {initial_rows - len(main_df)} empty/invalid rows based on 'PROJETO'.")
+            f"Dropped {initial_rows - len(main_df)} empty/invalid rows based on 'PROJETO'."
+        )
 
-    cols_to_drop = ['OBS. GSE', 'RESERVAS APP', 'Coluna 1']
+    cols_to_drop = ["OBS. GSE", "RESERVAS APP", "Coluna 1"]
     main_df.drop(
-        columns=[c for c in cols_to_drop if c in main_df.columns], inplace=True)
+        columns=[c for c in cols_to_drop if c in main_df.columns], inplace=True
+    )
 
     cols_to_remove = [c for c in main_df.columns if is_garbage_column(c)]
     if cols_to_remove:
         logger.info(f"Dropping garbage columns: {cols_to_remove}")
         main_df.drop(columns=cols_to_remove, inplace=True)
 
-    main_df.dropna(axis=1, how='all', inplace=True)
+    main_df.dropna(axis=1, how="all", inplace=True)
 
-    for coord in main_df['COORD'].unique():
-        regional_df = main_df[main_df['COORD'] == coord]
-        safe_name = str(coord).lower().replace(' ', '_')
-        output_regional = os.path.join(PROCESSED_DIR, f'aux_{safe_name}.csv')
-        regional_df.to_csv(output_regional, index=False,
-                           sep=';', decimal=',', encoding='utf-8-sig')
+    for coord in main_df["COORD"].unique():
+        regional_df = main_df[main_df["COORD"] == coord]
+        safe_name = str(coord).lower().replace(" ", "_")
+        output_regional = os.path.join(PROCESSED_DIR, f"aux_{safe_name}.csv")
+        regional_df.to_csv(
+            output_regional, index=False, sep=";", decimal=",", encoding="utf-8-sig"
+        )
 
     # 2. Transformations
     fill_values: Dict[str, str] = {
-        "GSE": "Não Enviado", "ATESTO": "Não Enviado", "RESERVAS": "Não Enviado",
-        "TECNICO": "NÃO DIRECIONADO", "GEOEX": "Não Postado", "CICLO DE POSTAGEM": "Não Postado"
+        "GSE": "Não Enviado",
+        "ATESTO": "Não Enviado",
+        "RESERVAS": "Não Enviado",
+        "TECNICO": "NÃO DIRECIONADO",
+        "GEOEX": "Não Postado",
+        "CICLO DE POSTAGEM": "Não Postado",
     }
     for col, val in fill_values.items():
         if col not in main_df.columns:
             main_df[col] = np.nan
-        main_df[col] = main_df[col].fillna(val).replace('', val)
+        main_df[col] = main_df[col].fillna(val).replace("", val)
 
     geoex_replacements: Dict[str, str] = {
-        "Não postado": "Não Postado", "ACEITA": "Aceita", "POSTADO": "Postado",
-        "REJEITADA": "Rejeitada", "Rejeitada ": "Rejeitada", "REPostado": "Repostado",
-        "VALIDADO": "Validado", "Á fechar": "Não Postado", "A postar": "Não Postado"
+        "Não postado": "Não Postado",
+        "ACEITA": "Aceita",
+        "POSTADO": "Postado",
+        "REJEITADA": "Rejeitada",
+        "Rejeitada ": "Rejeitada",
+        "REPostado": "Repostado",
+        "VALIDADO": "Validado",
+        "Á fechar": "Não Postado",
+        "A postar": "Não Postado",
     }
-    main_df['GEOEX'] = main_df['GEOEX'].replace(geoex_replacements)
-    main_df['PROJETO_FATO'] = main_df['PROJETO'].apply(extract_project)
+    main_df["GEOEX"] = main_df["GEOEX"].replace(geoex_replacements)
+    main_df["PROJETO_FATO"] = main_df["PROJETO"].apply(extract_project)
 
     numeric_cols: List[str] = [
-        'VALOR MAO DE OBRA LV', 'VALOR Á FATURAR LM', 'VALOR Á FATURAR DISTRI. DE POSTES',
-        'VALOR PENDENTE FATURAR', 'VALOR PROJETO'
+        "VALOR MAO DE OBRA LV",
+        "VALOR Á FATURAR LM",
+        "VALOR Á FATURAR DISTRI. DE POSTES",
+        "VALOR PENDENTE FATURAR",
+        "VALOR PROJETO",
     ]
     for col in numeric_cols:
         if col in main_df.columns:
             main_df[col] = main_df[col].apply(clean_currency)
 
-    if 'POSTES' in main_df.columns:
-        main_df['POSTES'] = pd.to_numeric(
-            main_df['POSTES'], errors='coerce').fillna(0).astype(int)
+    if "POSTES" in main_df.columns:
+        main_df["POSTES"] = (
+            pd.to_numeric(main_df["POSTES"], errors="coerce").fillna(0).astype(int)
+        )
 
     # 3. Pendencies
-    main_df['Descrição de pendencias'] = main_df.apply(calc_pendencies, axis=1)
+    main_df["Descrição de pendencias"] = main_df.apply(calc_pendencies, axis=1)
 
     # 4. Cycle Logic
-    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].astype(
-        str).str.strip().str.title()
-    current_month_pt = datetime.datetime.now().strftime('%B')
-    main_df['CICLO DE POSTAGEM'] = main_df['CICLO DE POSTAGEM'].replace(
-        {'Não Postado': current_month_pt})
+    main_df["CICLO DE POSTAGEM"] = (
+        main_df["CICLO DE POSTAGEM"].astype(str).str.strip().str.title()
+    )
+    current_month_pt = datetime.datetime.now().strftime("%B")
+    main_df["CICLO DE POSTAGEM"] = main_df["CICLO DE POSTAGEM"].replace(
+        {"Não Postado": current_month_pt}
+    )
 
     # 5. Aux Data Joins
     logger.info("Loading Auxiliary Data...")
 
-    aux_online_path = os.path.join(AUX_DIR, 'aux_encerramento_online.xlsx')
+    aux_online_path = os.path.join(AUX_DIR, "aux_encerramento_online.xlsx")
     aux_online = load_excel_smart(
-        aux_online_path, search_term="PROJETO", sub_header_offset=1)
+        aux_online_path, search_term="PROJETO", sub_header_offset=1
+    )
 
     if not aux_online.empty:
-        aux_online['PROJETO_FATO'] = aux_online['PROJETO'].apply(
-            extract_project)
-        target_cols: List[str] = ['PROJETO_FATO',
-                                  'STATUS', 'CONSISTÊNCIA', 'DT. ACEITO']
-        if 'ANÁLISE 01' in aux_online.columns:
-            target_cols.append('ANÁLISE 01')
-        if 'DT DIREC.' in aux_online.columns:
-            target_cols.append('DT DIREC.')
+        aux_online["PROJETO_FATO"] = aux_online["PROJETO"].apply(extract_project)
+        target_cols: List[str] = [
+            "PROJETO_FATO",
+            "STATUS",
+            "CONSISTÊNCIA",
+            "DT. ACEITO",
+        ]
+        if "ANÁLISE 01" in aux_online.columns:
+            target_cols.append("ANÁLISE 01")
+        if "DT DIREC." in aux_online.columns:
+            target_cols.append("DT DIREC.")
 
-        dt_anali = [
-            c for c in aux_online.columns if 'DT.' in c and 'ANALI' in c]
+        dt_anali = [c for c in aux_online.columns if "DT." in c and "ANALI" in c]
         if dt_anali:
             col_name = dt_anali[-1]
-            aux_online['DT. ANALI._2'] = aux_online[col_name]
-            target_cols.append('DT. ANALI._2')
+            aux_online["DT. ANALI._2"] = aux_online[col_name]
+            target_cols.append("DT. ANALI._2")
 
         final_cols = [c for c in target_cols if c in aux_online.columns]
-        aux_online = aux_online[final_cols].drop_duplicates(
-            subset=['PROJETO_FATO'])
+        aux_online = aux_online[final_cols].drop_duplicates(subset=["PROJETO_FATO"])
 
-        main_df = pd.merge(main_df, aux_online, on='PROJETO_FATO',
-                           how='left', suffixes=('', '_Online'))
-        if 'STATUS' in main_df.columns:
-            main_df['STATUS'] = main_df['STATUS'].fillna("NÃO CRIADO")
+        main_df = pd.merge(
+            main_df, aux_online, on="PROJETO_FATO", how="left", suffixes=("", "_Online")
+        )
+        if "STATUS" in main_df.columns:
+            main_df["STATUS"] = main_df["STATUS"].fillna("NÃO CRIADO")
 
-    aux_gse_path = os.path.join(AUX_DIR, 'aux_gse.xlsx')
-    aux_gse = load_excel_smart(
-        aux_gse_path, search_term="PROJETO", sub_header_offset=0)
+    aux_gse_path = os.path.join(AUX_DIR, "aux_gse.xlsx")
+    aux_gse = load_excel_smart(aux_gse_path, search_term="PROJETO", sub_header_offset=0)
 
     if not aux_gse.empty:
-        aux_gse['PROJETO_FATO'] = aux_gse['PROJETO'].apply(extract_project)
-        gse_cols: List[str] = ['PROJETO_FATO', 'USUÁRIO/SOLIC.',
-                               'DT. SOLIC.', 'DT. STATUS', 'STATUS']
+        aux_gse["PROJETO_FATO"] = aux_gse["PROJETO"].apply(extract_project)
+        gse_cols: List[str] = [
+            "PROJETO_FATO",
+            "USUÁRIO/SOLIC.",
+            "DT. SOLIC.",
+            "DT. STATUS",
+            "STATUS",
+        ]
         final_gse_cols = [c for c in gse_cols if c in aux_gse.columns]
-        aux_gse = aux_gse[final_gse_cols].drop_duplicates(
-            subset=['PROJETO_FATO'])
+        aux_gse = aux_gse[final_gse_cols].drop_duplicates(subset=["PROJETO_FATO"])
 
-        main_df = pd.merge(main_df, aux_gse, on='PROJETO_FATO',
-                           how='left', suffixes=('', '_GSE'))
-        if 'STATUS_GSE' in main_df.columns:
-            main_df.rename(
-                columns={'STATUS_GSE': 'AuxGSE.STATUS'}, inplace=True)
-            main_df['AuxGSE.STATUS'] = main_df['AuxGSE.STATUS'].fillna("N/A")
+        main_df = pd.merge(
+            main_df, aux_gse, on="PROJETO_FATO", how="left", suffixes=("", "_GSE")
+        )
+        if "STATUS_GSE" in main_df.columns:
+            main_df.rename(columns={"STATUS_GSE": "AuxGSE.STATUS"}, inplace=True)
+            main_df["AuxGSE.STATUS"] = main_df["AuxGSE.STATUS"].fillna("N/A")
 
-    pastas_files = [f for f in os.listdir(
-        AUX_DIR) if 'aux_pastas_aceitas' in f.lower() and f.endswith('.xlsx')]
+    pastas_files = [
+        f
+        for f in os.listdir(AUX_DIR)
+        if "aux_pastas_aceitas" in f.lower() and f.endswith(".xlsx")
+    ]
     logger.info(f"Found {len(pastas_files)} Pastas Aceitas files.")
 
     dfs_pastas: List[pd.DataFrame] = []
     for f in pastas_files:
         p_path = os.path.join(AUX_DIR, f)
         df_p = load_excel_smart(p_path, search_term="PROJETO")
-        if not df_p.empty and 'DT. BAIXA' in df_p.columns and 'PROJETO' in df_p.columns:
-            dfs_pastas.append(df_p[['PROJETO', 'DT. BAIXA']])
+        if not df_p.empty and "DT. BAIXA" in df_p.columns and "PROJETO" in df_p.columns:
+            dfs_pastas.append(df_p[["PROJETO", "DT. BAIXA"]])
 
     if dfs_pastas:
         aux_pastas = pd.concat(dfs_pastas, ignore_index=True)
-        aux_pastas['PROJETO_FATO'] = aux_pastas['PROJETO'].apply(
-            extract_project)
-        aux_pastas = aux_pastas.drop_duplicates(subset=['PROJETO_FATO'])
+        aux_pastas["PROJETO_FATO"] = aux_pastas["PROJETO"].apply(extract_project)
+        aux_pastas = aux_pastas.drop_duplicates(subset=["PROJETO_FATO"])
         main_df = pd.merge(
-            main_df, aux_pastas[['PROJETO_FATO', 'DT. BAIXA']], on='PROJETO_FATO', how='left')
+            main_df,
+            aux_pastas[["PROJETO_FATO", "DT. BAIXA"]],
+            on="PROJETO_FATO",
+            how="left",
+        )
 
-    main_df['Data do Ciclo'] = main_df.apply(calc_cycle, axis=1)
+    main_df["Data do Ciclo"] = main_df.apply(calc_cycle, axis=1)
 
-    output_path = os.path.join(PROCESSED_DIR, 'faturamentos_encerramento.csv')
-    main_df.to_csv(output_path, index=False, sep=';',
-                   decimal=',', encoding='utf-8-sig')
+    output_path = os.path.join(PROCESSED_DIR, "faturamentos_encerramento.csv")
+    main_df.to_csv(output_path, index=False, sep=";", decimal=",", encoding="utf-8-sig")
     logger.info(f"Pipeline complete. Saved to {output_path}")
 
 

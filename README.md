@@ -249,7 +249,7 @@ graph TD
     subgraph Input
         A[Pastas Anuais<br/>2024 / 2025 / 2026]
     end
-    
+
     subgraph ETL[etl_produtividade.py]
         B{Verificação de Arquivos}
         C[Selecionar Meses Fechados]
@@ -257,7 +257,7 @@ graph TD
         E[Normalizar Datas & Colunas]
         F[Filtrar Vistorias]
     end
-    
+
     subgraph Output
         G[(produtividade_tratada.csv)]
     end

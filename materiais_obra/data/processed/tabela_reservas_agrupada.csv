@@ -2069,7 +2069,7 @@ ENC-20251021-1173843-222-15816008;Movimentado;155,697;155,697;;;1173843;Jacobina
 ENC-20251021-1173843-222-15818229;Movimentado;17,15;17,15;;;1173843;Jacobina;222;Me Coel Av Chico Mendes Rural;2025-10-21;2025-10-22;Encerramento;;2025-10-30;2025-10-30;;;2025-10-21;2025-10-22
 ENC-20251021-1173843-921-15816009;Movimentado;13,0;13,0;Outro;"Material Está Em Código Errado
 
-Segue Alteração: 
+Segue Alteração:
 
 3303306 - Poste Conc Circ 12/2000 Subtr
 3303308 - Poste Conc Circ 14/2000 Subtr";1173843;Jacobina;921;Me Coel Av Chico Mendes Rural;2025-10-21;2025-10-21;Encerramento;;2025-10-30;2025-10-30;;;2025-10-21;2025-10-21
@@ -2293,7 +2293,7 @@ ENC-20251030-0997469-921-15884718;Movimentado;1,0;1,0;;;997469;Juazeiro;921;Er-C
 ENC-20251030-0997469-922-15884719;Movimentado;3,0;3,0;;;997469;Juazeiro;922;Er-Cind-Pov-Almas-Alegre;2025-10-30;2025-10-31;Encerramento;;2026-02-20;2025-11-05;;;2025-10-30;2025-10-31
 ENC-20251030-1107749-221-15856872;Mov. Parcial;20,0;14,0;Outro;"Códigos Incorretos:
 
-Laço 35 - 3431721 Por 3431760 
+Laço 35 - 3431721 Por 3431760
 Fio 4 - 2210004 Por 2205000
 Retirar O Anel";1107749;Jacobina;221;Er-Cind-Faz-Cais-Rural;2025-10-30;;Encerramento;;2026-02-20;2025-11-04;;;2025-10-30;
 ENC-20251030-1107749-221-15959768;Deletado;14,0;0,0;;;1107749;Jacobina;221;Er-Cind-Faz-Cais-Rural;2025-10-30;2025-11-14;Encerramento;;2026-02-20;2025-10-30;;;2025-10-30;2025-11-14
@@ -2667,7 +2667,7 @@ ENC-20251110-1165158-222-15940879;Movimentado;102,0;102,0;;;1165158;Juazeiro;222
 ENC-20251110-1165579-221-15656242;Mov. Parcial;1,0;1,0;;;1165579;Jacobina;221;Er-Cind-Faz-Vitoria Regia-Rural;2025-11-10;2025-11-10;Encerramento;;2026-02-20;2025-11-10;;;2025-11-10;2025-11-10
 ENC-20251110-1165655-221-15930047;Movimentado;1,0;1,0;;;1165655;Jacobina;221;;2025-11-10;2025-11-10;Encerramento;;2026-02-20;2025-11-10;;;2025-11-10;2025-11-10
 ENC-20251110-1165655-221-15930048;Movimentado;2,75;2,75;;;1165655;Jacobina;221;;2025-11-10;2025-11-10;Encerramento;;2026-02-20;2025-11-10;;;2025-11-10;2025-11-10
-ENC-20251110-1172021-221-15938093;Mov. Parcial;13,0;5,0;Outro;"Aleterar Código 
+ENC-20251110-1172021-221-15938093;Mov. Parcial;13,0;5,0;Outro;"Aleterar Código
 
 Laço 35 - 3431760
 Fio - 2205000
@@ -5302,7 +5302,7 @@ ENC-20260126-1218599-922-16263698;Movimentado;1,0;1,0;;;1218599;Bonfim;922;Er-Ci
 ENC-20260126-1218599-922-16263700;Movimentado;5,0;5,0;;;1218599;Bonfim;922;Er-Cind-Et-Pedra Branca-Rural;2026-01-26;2026-01-27;Encerramento;;2026-02-20;2026-01-27;;;2026-01-26;2026-01-27
 ENC-20260126-1226484-222-16261417;Movimentado;1,0;1,0;;;1226484;Juazeiro;222;Iem_Corret_2023_11_19380Regularizacao;2026-01-26;2026-01-26;Encerramento;;2026-02-20;2026-01-26;;;2026-01-26;2026-01-26
 ENC-20260126-1226487-222-16261416;Movimentado;1,0;1,0;;;1226487;Juazeiro;222;Iem_Corret_2025_7_71119Regularizacao;2026-01-26;2026-01-26;Encerramento;;2026-02-20;2026-01-26;;;2026-01-26;2026-01-26
-ENC-20260126-1233978-221-16263877;Movimentado;66,0;66,0;Outro, Verba;"Verba Solicitada 
+ENC-20260126-1233978-221-16263877;Movimentado;66,0;66,0;Outro, Verba;"Verba Solicitada
 Projeto De Kit - Encarregado Maurilio";1233978;Bonfim;221;Er-Cind-Faz-Cabaceira-Rural;2026-01-26;2026-01-27;Encerramento;;2026-02-20;2026-01-27;;;2026-01-26;2026-01-27
 ENC-20260126-1234077-221-16263879;Movimentado;1,0;1,0;Verba;Verba Solicitada;1234077;Bonfim;221;Er-Cind-Faz-Cabaceira-Rural;2026-01-26;2026-01-27;Encerramento;;2026-02-20;2026-01-27;;;2026-01-26;2026-01-27
 ENC-20260126-1234077-221-16263883;Movimentado;48,0;48,0;Verba;Verba Solicitada;1234077;Bonfim;221;Er-Cind-Faz-Cabaceira-Rural;2026-01-26;2026-01-27;Encerramento;;2026-02-20;2026-01-27;;;2026-01-26;2026-01-27
@@ -5886,7 +5886,7 @@ ENC-20260206-1177169-221-16328374;Movimentado;40,0;40,0;Verba;Verba Solicitada;1
 ENC-20260206-1183329-221-16323545;Movimentado;152,92;145,92;Outro, Verba;Modificar Código  -3481027 | Modificar Código -0536137 | Verba Solicitada;1183329;Bonfim;221;Er-Cind-Et-Adutora Mina-Rural-Nucleo Pil;2026-02-06;2026-02-09;Encerramento;;2026-02-20;2026-02-09;2026-02-09;;2026-02-06;2026-02-09
 ENC-20260206-1183329-921-16334663;Movimentado;3,0;3,0;;;1183329;Bonfim;921;Er-Cind-Et-Adutora Mina-Rural-Nucleo Pil;2026-02-06;2026-02-10;Encerramento;;2026-02-20;2026-02-10;;;2026-02-06;2026-02-10
 ENC-20260206-1185415-222-16315710;Movimentado;2,0;2,0;;;1185415;Juazeiro;222;Ac-Cind-Pov-Chapadinha-Rural-Sobradinho;2026-02-06;2026-02-06;Encerramento;;2026-02-07;2026-02-06;;;2026-02-06;2026-02-06
-ENC-20260206-1194733-221-16323550;Movimentado;135,5;135,5;Estoque Virtual;"Alterações Solicitadas				
+ENC-20260206-1194733-221-16323550;Movimentado;135,5;135,5;Estoque Virtual;"Alterações Solicitadas
 
 2210005	Fio Aluminio Coberto 10Mm.	4,5 Alterar Para O Código	2205000	Fio De Aço Cobreado 4 Awg
 
@@ -5894,7 +5894,7 @@ ENC-20260206-1194733-221-16323550;Movimentado;135,5;135,5;Estoque Virtual;"Alter
 2400016	Conetor Impact Al      2/0     /1/0 Az	9	Alterar Para O Código 2400009	Conetor Impact Al      4/0     /2/0 Az
 
 
-2403000	Conetor Estrb Al   Imp     2Awg/ 35Mm2	9  Alterar Para O Código	
+2403000	Conetor Estrb Al   Imp     2Awg/ 35Mm2	9  Alterar Para O Código
 2403001	Conetor Estrb Al  Imp   2/0Awg/ 35Mm2 Az
 
 
@@ -6037,7 +6037,7 @@ ENC-20260207-1244957-221-16325067;Deletado;5,0;0,0;Reserva Incorreta;Modificar P
 ENC-20260209-1042855-222-16322649;Movimentado;10,0;10,0;;;1042855;Juazeiro;222;Ac Cind-Pov-Baixao Dos Cablocos Rural;2026-02-09;2026-02-09;Encerramento;;2026-02-20;2026-02-09;;;2026-02-09;2026-02-09
 ENC-20260209-1133426-221-16330493;Movimentado;38,56;28,43;Estoque Virtual;"Alterar Códigos:
 
-536778	Elo Fusivel 15,0/36,2 Kv 0,5H Cobre.	2	
+536778	Elo Fusivel 15,0/36,2 Kv 0,5H Cobre.	2
 Por Esse 536136	Elo Fusivel 15,0/36,2Kv 0,5H  Prata (Fp)
 
 2201008	Fio Cobre Nu Cl1 10,00Mm2 Tempera Mole	0,13		Retirar
@@ -6075,7 +6075,7 @@ ENC-20260209-1227477-222-16333637;Movimentado;27,0;27,0;;;1227477;Bonfim;222;Er-
 ENC-20260209-1229278-221-16333638;Movimentado;6,0;6,0;;;1229278;Bonfim;221;Ub-Cind-Rua-Passagem Velha-Olaria;2026-02-09;2026-02-10;Encerramento;;2026-02-20;2026-02-10;;;2026-02-09;2026-02-10
 ENC-20260209-1229329-221-16330411;Movimentado;2,0;2,0;;;1229329;Jacobina;221;Ub-Cind-Rua-Itamar Franco-Jar Formosa;2026-02-09;2026-02-09;Encerramento;;2026-02-20;2026-02-10;;;2026-02-09;2026-02-09
 ENC-20260209-1231453-221-16332755;Movimentado;6,0;6,0;Estoque Virtual;Aguardando Código Alterar Lote;1231453;Jacobina;221;Er-Cind-Faz-Sao Mauricio 33-Rural;2026-02-09;2026-02-10;Encerramento;;2026-02-20;2026-02-10;2026-02-11;;2026-02-09;2026-02-10
-ENC-20260209-1231936-221-16331288;Deletado;1,0;0,0;Estoque Virtual;"Alterações Solicitadas				
+ENC-20260209-1231936-221-16331288;Deletado;1,0;0,0;Estoque Virtual;"Alterações Solicitadas
 Código	Descrição	Quantidade	Código P/ Alteração	Descrição
 2223464	Cabo Cobre Xlpe 35Mm2 1F Preto.	8	2223455	Cabo Cobre Xlpe 50Mm2 1F Preto.
 2400016	Conetor Impact Al      2/0     /1/0 Az	4	2400009	Conetor Impact Al      4/0     /2/0 Az
