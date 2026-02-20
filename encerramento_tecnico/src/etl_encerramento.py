@@ -213,7 +213,8 @@ def is_garbage_column(col_name: Any) -> bool:
     return False
 
 def extract_project(val: Any) -> Optional[str]:
-    if pd.isna(val): return None
+    if pd.isna(val):
+        return None
     parts = str(val).split('-')
     return parts[-1].strip() if len(parts) > 1 else str(val).strip()
 
@@ -221,34 +222,51 @@ def calc_pendencies(row: pd.Series) -> str:
     pends: List[str] = []
     # GSE
     g = row.get('GSE')
-    if g in ["Desenhado"]: pends.append("Pendente conciliar")
-    elif g in ["Em desenho"]: pends.append("Pendente finalizar desenho")
-    elif g in ["Não enviado"]: pends.append("Pendente enviar GSE")
-    elif g in ["Reprovado"]: pends.append("GSE Reprovado")
-    elif g in ["Solic. p/ Retroagir"]: pends.append("Erro de cadastro no GSE")
-    elif g in ["Solicitado"]: pends.append("GSE solicitado")
-    elif g in ["Vazio", None, "", "Não Enviado"]: pends.append("GSE Não solicitado")
+    if g in ["Desenhado"]:
+        pends.append("Pendente conciliar")
+    elif g in ["Em desenho"]:
+        pends.append("Pendente finalizar desenho")
+    elif g in ["Não enviado"]:
+        pends.append("Pendente enviar GSE")
+    elif g in ["Reprovado"]:
+        pends.append("GSE Reprovado")
+    elif g in ["Solic. p/ Retroagir"]:
+        pends.append("Erro de cadastro no GSE")
+    elif g in ["Solicitado"]:
+        pends.append("GSE solicitado")
+    elif g in ["Vazio", None, "", "Não Enviado"]:
+        pends.append("GSE Não solicitado")
     
     # ATESTO
     a = row.get('ATESTO')
-    if a == "Não enviado": pends.append("Pendente enviar atesto")
-    elif a == "Solicitado": pends.append("Atesto solicitado")
-    elif a == "Vazio": pends.append("Atesto não solicitado")
+    if a == "Não enviado":
+        pends.append("Pendente enviar atesto")
+    elif a == "Solicitado":
+        pends.append("Atesto solicitado")
+    elif a == "Vazio":
+        pends.append("Atesto não solicitado")
 
     # RESERVAS
     r = row.get('RESERVAS')
-    if r == "Almoxarifado": pends.append("Pendencia no almoxarifado")
-    elif r == "Consistindo": pends.append("Concistindo reservas")
-    elif r == "Criação": pends.append("Pendente criação de reserva")
-    elif r == "Não Enviado": pends.append("Pendente enviar reservas")
-    elif r == "Vazio": pends.append("Pendente solicitar reserva")
+    if r == "Almoxarifado":
+        pends.append("Pendencia no almoxarifado")
+    elif r == "Consistindo":
+        pends.append("Concistindo reservas")
+    elif r == "Criação":
+        pends.append("Pendente criação de reserva")
+    elif r == "Não Enviado":
+        pends.append("Pendente enviar reservas")
+    elif r == "Vazio":
+        pends.append("Pendente solicitar reserva")
 
     if pd.isna(row.get('ENTRADA')) or row.get('ENTRADA') == "":
          pends.append('Pendente "As Built"')
     
     e = row.get('EVIDENCIAS BOOK')
-    if e == "EVIDENCIA INSU. - GPM": pends.append("Evidencias insuficientes")
-    elif e == "S/EVIDENCIA- GPM": pends.append("Sem evidences")
+    if e == "EVIDENCIA INSU. - GPM":
+        pends.append("Evidencias insuficientes")
+    elif e == "S/EVIDENCIA- GPM":
+        pends.append("Sem evidences")
 
     return ", ".join(pends) if pends else "Sem pendência"
 
@@ -259,12 +277,14 @@ def calc_cycle(row: pd.Series) -> Optional[datetime.date]:
     
     mes_nome = row.get('CICLO DE POSTAGEM')
     mes_num = inv_months.get(mes_nome)
-    if not mes_num: return None
+    if not mes_num:
+        return None
 
     try:
         if not pd.isna(row.get('ANO')):
             return datetime.date(int(row['ANO']), mes_num, 1)
-    except Exception: pass
+    except Exception:
+        pass
 
     dt_baixa = row.get('DT. BAIXA')
     try:
@@ -329,7 +349,8 @@ def main() -> None:
         "TECNICO": "NÃO DIRECIONADO", "GEOEX": "Não Postado", "CICLO DE POSTAGEM": "Não Postado"
     }
     for col, val in fill_values.items():
-        if col not in main_df.columns: main_df[col] = np.nan
+        if col not in main_df.columns:
+            main_df[col] = np.nan
         main_df[col] = main_df[col].fillna(val).replace('', val)
 
     geoex_replacements: Dict[str, str] = {
@@ -368,8 +389,10 @@ def main() -> None:
     if not aux_online.empty:
         aux_online['PROJETO_FATO'] = aux_online['PROJETO'].apply(extract_project)
         target_cols: List[str] = ['PROJETO_FATO', 'STATUS', 'CONSISTÊNCIA', 'DT. ACEITO']
-        if 'ANÁLISE 01' in aux_online.columns: target_cols.append('ANÁLISE 01')
-        if 'DT DIREC.' in aux_online.columns: target_cols.append('DT DIREC.')
+        if 'ANÁLISE 01' in aux_online.columns:
+            target_cols.append('ANÁLISE 01')
+        if 'DT DIREC.' in aux_online.columns:
+            target_cols.append('DT DIREC.')
         
         dt_anali = [c for c in aux_online.columns if 'DT.' in c and 'ANALI' in c]
         if dt_anali:

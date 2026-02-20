@@ -1,8 +1,7 @@
 import os
 import sys
 import logging
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any
 from pathlib import Path
 
 import pandas as pd
@@ -144,7 +143,7 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             outliers_mask = df[col] > 10000
             if outliers_mask.any():
-                logger.warning(f"Coluna '{col}' possui {outliers_mask.sum()} valores > 10.000. Zerando-os.")
+                logger.warning(f"Coluna '{col}' possui {outliers_mask.sum()} valores > 10000. Zerando-os.")
                 df.loc[outliers_mask, col] = 0
 
     if 'Pendencias' in df.columns:
@@ -185,7 +184,8 @@ def create_solicitations_summary(df: pd.DataFrame) -> pd.DataFrame:
 
     def resolve_status(series: pd.Series) -> str:
         statuses = set(s.strip() for s in series.astype(str) if pd.notna(s) and str(s).strip())
-        if 'Mov. Parcial' in statuses: return 'Mov. Parcial'
+        if 'Mov. Parcial' in statuses:
+            return 'Mov. Parcial'
         if len(statuses) == 1:
             status = statuses.pop()
             return 'Movimentado' if status == 'Confirmado' else status
@@ -205,11 +205,14 @@ def create_solicitations_summary(df: pd.DataFrame) -> pd.DataFrame:
     }
     
     for col in ['QuantSolic', 'Quant_x002e_Confirmada']:
-        if col in df.columns: agg_rules[col] = 'sum'
+        if col in df.columns:
+            agg_rules[col] = 'sum'
     for col in metadata_cols:
-        if col in df.columns: agg_rules[col] = 'first'
+        if col in df.columns:
+            agg_rules[col] = 'first'
     for col in date_cols:
-        if col not in agg_rules: agg_rules[col] = 'min'
+        if col not in agg_rules:
+            agg_rules[col] = 'min'
 
     df_grouped = df.groupby('IdSolic', as_index=False).agg(agg_rules)
     logger.info(f"Agrupamento concluído: {len(df)} linhas -> {len(df_grouped)} solicitações únicas.")

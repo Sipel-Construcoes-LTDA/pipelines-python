@@ -2,7 +2,6 @@ import pandas as pd
 import os
 import logging
 from thefuzz import process as fuzzy_process
-from collections import defaultdict
 from typing import Dict, List, Any
 
 # Configuração básica de logging

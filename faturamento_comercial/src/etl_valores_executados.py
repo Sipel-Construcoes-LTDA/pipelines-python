@@ -3,7 +3,7 @@ import os
 import glob
 import logging
 import warnings
-from typing import Optional, Dict, Any, List
+from typing import Any, List
 
 # Configuração de Logging
 logging.basicConfig(
@@ -118,10 +118,11 @@ def process_pipeline() -> None:
     for file_path in all_files:
         try:
             filename = os.path.basename(file_path)
-            if filename.lower().endswith('.xlsx'): continue
+            if filename.lower().endswith('.xlsx'):
+                continue
             
             header_row = find_header_row(file_path)
-            df_temp = pd.read_csv(file_path, sep='	', encoding='utf-16', skiprows=header_row)
+            df_temp = pd.read_csv(file_path, sep='\t', encoding='utf-16', skiprows=header_row)
             
             if 'Unnamed: 0' in df_temp.columns:
                 df_temp = df_temp.drop(columns=['Unnamed: 0'])

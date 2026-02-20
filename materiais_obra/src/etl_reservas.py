@@ -1,8 +1,7 @@
 import os
 import sys
 import logging
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any
 from pathlib import Path
 
 import pandas as pd
@@ -210,27 +209,34 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     }
     return df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
 
+def resolve_status_aggr(series: pd.Series) -> str:
+    # Helper for create_reservas_summary and consolidate_all_data
+    statuses = {s.strip().title() for s in series.astype(str) if s.strip() and s.lower() not in ['nan', 'none', 'nat']}
+    if not statuses:
+        return 'Pendente'
+    if any('Parcial' in s for s in statuses):
+        return 'Mov. Parcial'
+    if any(s in ['Movimentado', 'Confirmado'] for s in statuses):
+        return 'Mov. Parcial' if any('Pendente' in s or 'Reservado' in s for s in statuses) else 'Movimentado'
+    if any(s in ['Pendente', 'Reservado'] for s in statuses):
+        return 'Pendente'
+    return sorted(list(statuses))[0] if statuses else 'Pendente'
+
+def agg_pendencias_aggr(series: pd.Series) -> str:
+    # Helper for create_reservas_summary and consolidate_all_data
+    return clean_pendency_tags("; ".join(s for s in series.dropna().astype(str) if s.strip()))
+
+def agg_descriptions_aggr(series: pd.Series) -> str:
+    # Helper for create_reservas_summary and consolidate_all_data
+    return " | ".join(sorted({s.strip() for s in series.dropna().astype(str) if s.strip() and s.lower() not in ['nan', 'none', '<na>']}))
+
+
 def create_reservas_summary(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Gerando tabela agrupada por IdSolic (Reservas)...")
     if df.empty or 'IdSolic' not in df.columns:
         return pd.DataFrame()
 
-    def resolve_status(series: pd.Series) -> str:
-        statuses = {s.strip().title() for s in series.astype(str) if s.strip() and s.lower() not in ['nan', 'none', 'nat']}
-        if not statuses: return 'Pendente'
-        if any('Parcial' in s for s in statuses): return 'Mov. Parcial'
-        if any(s in ['Movimentado', 'Confirmado'] for s in statuses):
-            return 'Mov. Parcial' if any('Pendente' in s or 'Reservado' in s for s in statuses) else 'Movimentado'
-        if any(s in ['Pendente', 'Reservado'] for s in statuses): return 'Pendente'
-        return sorted(list(statuses))[0] if statuses else 'Pendente'
-
-    def agg_pendencias(series: pd.Series) -> str:
-        return clean_pendency_tags("; ".join(s for s in series.dropna().astype(str) if s.strip()))
-
-    def agg_descriptions(series: pd.Series) -> str:
-        return " | ".join(sorted({s.strip() for s in series.dropna().astype(str) if s.strip() and s.lower() not in ['nan', 'none', '<na>']}))
-
-    agg_rules = {'StatusSolic': resolve_status, 'QuantSolic': 'sum', 'Quant_Confirmada': 'sum', 'Pendencias': agg_pendencias, 'DescricaoPendencias': agg_descriptions}
+    agg_rules = {'StatusSolic': resolve_status_aggr, 'QuantSolic': 'sum', 'Quant_Confirmada': 'sum', 'Pendencias': agg_pendencias_aggr, 'DescricaoPendencias': agg_descriptions_aggr}
     
     metadata_cols = ['obra', 'BaseOperacional', 'TipoSolic', 'titulo', 'DataSolic', 'DataCriacaoReserva', 'Processo']
     for col in [c for c in metadata_cols if c in df.columns]:
@@ -239,7 +245,8 @@ def create_reservas_summary(df: pd.DataFrame) -> pd.DataFrame:
     date_cols = [c for c in df.columns if 'Data' in c or c in ['Created', 'Modified']]
     for col in date_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
-        if col not in agg_rules: agg_rules[col] = 'min'
+        if col not in agg_rules:
+            agg_rules[col] = 'min'
 
     return df.groupby('IdSolic', as_index=False).agg(agg_rules)
 
@@ -288,21 +295,14 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
 
     logger.info("Agrupando base consolidada geral...")
     
-    def resolve_status_geral(series: pd.Series) -> str:
-        statuses = {s.strip().title() for s in series.astype(str) if s.strip() and s.lower() not in ['nan', 'none', 'nat']}
-        if not statuses: return 'Pendente'
-        if any('Parcial' in s for s in statuses): return 'Mov. Parcial'
-        if any(s in ['Movimentado', 'Confirmado'] for s in statuses):
-            return 'Mov. Parcial' if any('Pendente' in s or 'Reservado' in s for s in statuses) else 'Movimentado'
-        if any(s in ['Pendente', 'Reservado'] for s in statuses): return 'Pendente'
-        return sorted(list(statuses))[0] if statuses else 'Pendente'
-
-    agg_rules = {'QuantSolic': 'sum', 'Quant_Confirmada': 'sum', 'StatusSolic': resolve_status_geral, 'Pendencias': agg_pendencias, 'DescricaoPendencias': agg_descriptions}
+    agg_rules = {'QuantSolic': 'sum', 'Quant_Confirmada': 'sum', 'StatusSolic': resolve_status_aggr, 'Pendencias': agg_pendencias_aggr, 'DescricaoPendencias': agg_descriptions_aggr}
     for col in df_all.columns:
-        if col in agg_rules or col == 'IdSolic': continue
+        if col in agg_rules or col == 'IdSolic':
+            continue
         agg_rules[col] = 'max' if 'Data' in col or col in ['Created', 'Modified'] or pd.api.types.is_numeric_dtype(df_all[col]) else 'first'
     for col in ['DataCriacaoReserva', 'DataSolicMod', 'DataPendencia', 'DataRegularizacao']:
-        if col in df_all.columns: agg_rules[col] = 'max'
+        if col in df_all.columns:
+            agg_rules[col] = 'max'
 
     df_final = df_all.groupby('IdSolic', as_index=False).agg(agg_rules)
     
@@ -312,7 +312,7 @@ def consolidate_all_data(df_reservas: pd.DataFrame, root_dir: Path) -> pd.DataFr
 
     if 'IsDeleted' in df_final.columns:
         df_final['IsDeleted'] = df_final['IsDeleted'].astype(str).str.lower().map({'0': False, '0.0': False, 'false': False, '1': True, '1.0': True, 'true': True}).fillna(False).astype(bool)
-        df_final = df_final[df_final['IsDeleted'] == False].copy()
+        df_final = df_final[~df_final['IsDeleted']].copy()
 
     if 'StatusSolic' in df_final.columns:
         df_final['StatusSolic'] = df_final['StatusSolic'].replace({'Confirmado': 'Movimentado', 'Reservado': 'Pendente', 'Deletado': 'Rejeitado', 'Estornado': 'Rejeitado'})

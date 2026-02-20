@@ -91,7 +91,7 @@ def read_file(filepath: str) -> pd.DataFrame:
     Lê o arquivo .XLS (Texto Tabulado UTF-16).
     """
     try:
-        df = pd.read_csv(filepath, sep='	', encoding='utf-16', skiprows=3, on_bad_lines='skip')
+        df = pd.read_csv(filepath, sep='\t', encoding='utf-16', skiprows=3, on_bad_lines='skip')
         df.columns = df.columns.str.strip()
         
         if 'Nota' not in df.columns:
@@ -124,7 +124,8 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
     df["Nº do pedido"] = df["Nº do pedido"].fillna("Vazio") if "Nº do pedido" in df.columns else "Vazio"
 
     def check_vistoria(pedido: Any) -> str:
-        if pd.isna(pedido): return "Não vistoriada"
+        if pd.isna(pedido):
+            return "Não vistoriada"
         p = str(pedido)
         return "Vistoriada" if any(x in p for x in ["vv", "vv.", "v v"]) or p.startswith("VV") else "Não vistoriada"
 
