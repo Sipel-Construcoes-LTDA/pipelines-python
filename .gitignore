@@ -1,6 +1,7 @@
 
 produtividade_comercial/produtividade_tratada.csv
 faturamento_comercial/faturamentos_executados_consolidado.csv
+vistorias_comercial/data/processed/vistorias_consolidadas.csv
 
 __pycache__
 .env
