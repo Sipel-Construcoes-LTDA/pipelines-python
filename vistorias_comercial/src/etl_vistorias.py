@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import List
+from pathlib import Path
 
 import pandas as pd
 
@@ -21,7 +22,8 @@ GIDS = {
     "Jacobina": "1906289711",
     "Juazeiro": "1923088500",
 }
-OUTPUT_PATH = "pipelines-python/vistorias_comercial/data/processed/vistorias_consolidadas.csv"
+MODULE_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = MODULE_ROOT.parent
 
 
 def get_url(spreadsheet_id: str, gid: str) -> str:
@@ -208,13 +210,13 @@ def main() ->  None:
         logger.warning(f"Removidas {rows_before - rows_after} linhas sem 'DATA DO CONTATO'.")
 
     # Salvar output
-    output_dir = os.path.dirname(OUTPUT_PATH)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    df_final.to_csv(OUTPUT_PATH, index=False, sep=";", encoding="utf-8-sig")
+    output_dir_processed = MODULE_ROOT / "data" / "processed"
+    output_dir_processed.mkdir(parents=True, exist_ok=True)
+    output_path_processed = output_dir_processed / "vistorias_consolidadas.csv"
+    df_final.to_csv(output_path_processed, index=False, sep=";", encoding="utf-8-sig")
 
     logger.info("--- Pipeline concluído! ---")
-    logger.info(f"Salvo em: {OUTPUT_PATH}")
+    logger.info(f"Salvo em: {output_path_processed}")
     logger.info(f"Total de vistorias consolidadas: {len(df_final)}")
 
 
