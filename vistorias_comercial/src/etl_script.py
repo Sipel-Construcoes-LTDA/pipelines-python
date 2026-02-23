@@ -157,7 +157,7 @@ def process_juazeiro(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     return df
 
 
-def main():
+def main() ->  None:
     """Ponto de entrada do pipeline de ETL de Vistorias."""
     logger.info("--- Iniciando Pipeline de Vistorias Comercial ---")
 
