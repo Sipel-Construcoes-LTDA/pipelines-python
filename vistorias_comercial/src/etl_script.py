@@ -73,7 +73,6 @@ def process_bonfim(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     """Extrai e trata os dados de Senhor do Bonfim."""
     source_name = "Bonfim"
     logger.info(f"Processando base: {source_name}")
-    
     url = get_url(spreadsheet_id, gid)
     df = pd.read_csv(url)
 
@@ -212,7 +211,6 @@ def main():
     output_dir = os.path.dirname(OUTPUT_PATH)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        
     df_final.to_csv(OUTPUT_PATH, index=False, sep=";", encoding="utf-8-sig")
 
     logger.info("--- Pipeline concluído! ---")
