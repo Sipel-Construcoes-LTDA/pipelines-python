@@ -196,6 +196,7 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
         "DescricaoPendencias",
         "Justificativa",
         "Justificar",
+        "Processo",
     ]
     for col in [c for c in cols_to_normalize if c in df.columns]:
         df[col] = (
@@ -205,6 +206,11 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
             .str.strip()
             .replace({"Nan": "", "Nat": "", "None": "", "<Na>": ""}, regex=False)
         )
+
+    if "Processo" not in df.columns or (df["Processo"] == "").all():
+        df["Processo"] = "Obras"
+    else:
+        df["Processo"] = df["Processo"].replace("", "Obras")
 
     if "obra" in df.columns:
         df["obra"] = (
@@ -224,8 +230,6 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     ]
     for col in [c for c in int_cols if c in df.columns]:
         df[col] = pd.to_numeric(df[col], errors="coerce").round().astype("Int64")
-
-    df["Processo"] = "Obras"
 
     text_cols = df.select_dtypes(include=["object"]).columns
     for col in text_cols:
