@@ -195,6 +195,32 @@ Ecossistema de pipelines para gestão de suprimentos e movimentação de materia
     *   **Consolidação Geral**: Cruzamento automático entre solicitações diretas e reservas técnicas para uma visão 360º do almoxarifado.
 *   **Output**: `data/processed/solicitacoes_consolidadas_geral.csv` e `fato_movimentacoes_itens.csv`.
 
+### 8. Vistorias Comercial
+*Local: `/vistorias_comercial`*
+*Script: `src/etl_vistorias.py`*
+
+Pipeline responsável por consolidar e padronizar os dados de vistorias comerciais das três bases (Senhor do Bonfim, Jacobina e Juazeiro) de planilhas Google Sheets em um único dataset limpo e unificado.
+*   **Input**: Google Sheets (Bonfim, Jacobina, Juazeiro) acessados via URL de exportação CSV.
+*   **Regras de Negócio**:
+    *   **Vistorias Bonfim**:
+        *   Leitura direta (`pd.read_csv`).
+        *   Tipagem: `NOTA` como inteiro; `PRAZO DA NOTA` e `DATA DO CONTATO` como `datetime`.
+        *   Renomeação de colunas: `COLABORADOR` para `RESPONSAVEL`, `STATUS` para `CONFORMIDADE`, e `CONFORMIDADE` para `STATUS` (inversão).
+        *   Limpeza: Remover linhas com `NOTA` não numérico.
+    *   **Vistorias Jacobina**:
+        *   Leitura direta (`pd.read_csv`).
+        *   Limpeza de linhas vazias (`df.dropna(how='all')`).
+        *   Renomeação de colunas: `LOCAL` para `MUNICIPIO`, `DATA CONTATO` para `DATA DO CONTATO`, `STATUS` para `CONFORMIDADE`, e `CONFORMIDADE` para `STATUS` (inversão).
+        *   Validação: Garantir que `NOTA` seja numérico.
+    *   **Vistorias Juazeiro**:
+        *   Leitura com ajuste `skiprows` se necessário (devido a múltiplos cabeçalhos).
+        *   Renomeação de colunas: `UTEP` para `MUNICIPIO`, `COLABORADOR` para `RESPONSAVEL`, `DATA CONTATO` para `DATA DO CONTATO`, `RETORNO` para `CONFORMIDADE`.
+    *   **Consolidação Final**:
+        *   União dos DataFrames das três bases (`pd.concat`).
+        *   Seleção de colunas padronizadas: `NOTA`, `DATA DO CONTATO`, `DATA DO RETORNO`, `MUNICIPIO`, `RESPONSAVEL`, `STATUS`, `CONFORMIDADE`.
+        *   Tratamento de `DATA DO RETORNO` para tipo `date`.
+        *   Remoção de linhas com datas críticas nulas/inválidas após conversão.
+*   **Output**: `data/processed/vistorias_consolidadas.csv`.
 ## 📦 Como Executar os Pipelines
 
 Após configurar o ambiente de desenvolvimento (ver seção "Qualidade de Código e CI/CD"), você pode executar os pipelines individualmente a partir da raiz do projeto.
@@ -414,6 +440,39 @@ graph TD
     D --> E
     E --> F
     F --> G & H
+
+### 7. Vistorias Comercial
+```mermaid
+graph TD
+    subgraph Sources
+        A[Google Sheets<br/>Bonfim]
+        B[Google Sheets<br/>Jacobina]
+        C[Google Sheets<br/>Juazeiro]
+    end
+
+    subgraph ETL[etl_vistorias.py]
+        D{Processar Bonfim}
+        E{Processar Jacobina}
+        F{Processar Juazeiro}
+        G[Unir DataFrames]
+        H[Selecionar & Tratar Colunas]
+        I[Limpar Datas Críticas]
+    end
+
+    subgraph Output
+        J[(vistorias_consolidadas.csv)]
+    end
+
+    A --> D
+    B --> E
+    C --> F
+    D --> G
+    E --> G
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+```
 ```
 
 ## 📄 Licença
