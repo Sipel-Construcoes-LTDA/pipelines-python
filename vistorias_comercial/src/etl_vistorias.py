@@ -138,7 +138,7 @@ def process_juazeiro(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 
     if "UTEP" not in df.columns and "NOTA" not in df.columns:
         logger.warning(f"[{source_name}] Cabeçalho suspeito. Tentando pular a primeira linha.")
-        df = pd.read_csv(url, skiprows=1)
+        df = pd.read_csv(url, skiprows=2)
 
     required_cols = ["UTEP", "NOTA", "COLABORADOR", "DATA CONTATO", "RETORNO"]
     validate_required_columns(df, required_cols, source_name)
