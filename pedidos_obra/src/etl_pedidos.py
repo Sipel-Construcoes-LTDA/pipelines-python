@@ -1,7 +1,5 @@
 import logging
 
-import pandas as pd
-
 # Configuração de Logging conforme PADROES_PROJETO.md
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
