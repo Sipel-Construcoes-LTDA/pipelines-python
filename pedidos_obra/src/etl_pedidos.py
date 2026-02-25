@@ -12,14 +12,17 @@ logger = logging.getLogger(__name__)
 
 # --- Configurações & Constantes ---
 IDS_PLANILHAS = {
-    "Bonfim": "1xRM5ArGu70p0sUtoLNpmOx-pEogwcJsPEO5kVT7jaZY",
-    "Jacobina": "1oluRkWRsj6GuS8QJ0L3jFXi3FkLkCHCyVvbNpOjrdl4",
-    "Juazeiro": "1lreFnHhjlEubtw_L6TDnQ1Ho3-_3VUDDmCOnN9Nsy2k",
+    "Bonfim_obra": "1xRM5ArGu70p0sUtoLNpmOx-pEogwcJsPEO5kVT7jaZY",
+    "Jacobina_obra": "1oluRkWRsj6GuS8QJ0L3jFXi3FkLkCHCyVvbNpOjrdl4",
+    "Juazeiro_obra": "1lreFnHhjlEubtw_L6TDnQ1Ho3-_3VUDDmCOnN9Nsy2k"
 }
 GIDS = {
-    "Bonfim": "1533241260",
-    "Jacobina": "1533241260",
-    "Juazeiro": "870879769",
+    "Bonfim_obra": "1533241260",
+    "Jacobina_obra": "1533241260",
+    "Juazeiro_obra": "870879769",
+    "Bonfim_manut":"1995794361",
+    "Jacobina_manut":"1995794361",
+    "Juazeiro_manut":"1926173995",
 }
 MODULE_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = MODULE_ROOT.parent
