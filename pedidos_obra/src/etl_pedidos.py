@@ -94,7 +94,6 @@ def process_generic(source_name: str, spreadsheet_id: str, gid: str) -> pd.DataF
     df = df.dropna(how="all")
 
     df = standardize_columns(df)
-    
     required_cols = ["DATA_ENVIO", "RESPONSAVEL", "PEDIDO", "VALOR_LIQUIDO", "DATA_DOC"]
     validate_required_columns(df, required_cols, source_name)
     # Conversões de tipo
@@ -104,7 +103,6 @@ def process_generic(source_name: str, spreadsheet_id: str, gid: str) -> pd.DataF
         VALOR_LIQUIDO=clean_currency(df["VALOR_LIQUIDO"]),
         PEDIDO=pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int).astype(str)
     )
-    
     return df
 def main() -> None:
     """Ponto de entrada do pipeline de ETL de Pedidos de Obra."""
@@ -129,16 +127,12 @@ def main() -> None:
 
     # Colunas finais desejadas
     colunas_finais = [
-        "DATA_ENVIO", "DATA_DOC", "RESPONSAVEL", "TIPO", "PEP", 
-        "DEFINICAO", "PEDIDO", "VALOR_LIQUIDO", "CONTRATO", 
-        "MUNICIPIO", "BASE", "CICLO"
+        "DATA_ENVIO", "DATA_DOC", "RESPONSAVEL", "TIPO", "PEP", "DEFINICAO", "PEDIDO", "VALOR_LIQUIDO", "CONTRATO", "MUNICIPIO", "BASE", "CICLO"
     ]
-    
     # Adiciona colunas ausentes como NA
     for col in colunas_finais:
         if col not in df_final.columns:
             df_final[col] = pd.NA
-            
     df_final = df_final[colunas_finais].copy()
 
     # Garante que as datas sejam datetime antes de extrair .date
@@ -147,7 +141,6 @@ def main() -> None:
 
     # Limpezas finais
     df_final = df_final.dropna(subset=["DATA_ENVIO", "PEDIDO"])
-    
     # Formatação de datas para o CSV final (converte para string ou objeto date)
     df_final.loc[:, "DATA_ENVIO"] = df_final["DATA_ENVIO"].dt.date
     df_final.loc[:, "DATA_DOC"] = df_final["DATA_DOC"].dt.date
@@ -156,7 +149,6 @@ def main() -> None:
     output_dir_processed = MODULE_ROOT / "data" / "processed"
     output_dir_processed.mkdir(parents=True, exist_ok=True)
     output_path_processed = output_dir_processed / "pedidos_consolidados.csv"
-    
     df_final.to_csv(output_path_processed, index=False, sep=";", encoding="utf-8-sig")
 
     logger.info("--- Pipeline concluído! ---")
