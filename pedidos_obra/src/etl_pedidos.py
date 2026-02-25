@@ -52,7 +52,6 @@ def clean_currency(series: pd.Series) -> pd.Series:
     """Limpa valores monetários (Ex: R$ 1.234,56 -> 1234.56)."""
     if series is None or series.empty:
         return series
-    
     clean_series = (
         series.astype(str)
         .str.replace("R$", "", regex=False)
@@ -66,7 +65,6 @@ def clean_currency(series: pd.Series) -> pd.Series:
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Remove espaços extras nos nomes das colunas e aplica mapeamento padrão."""
     df.columns = [col.strip() for col in df.columns]
-    
     # Mapeamento de colunas com nomes variados ou caracteres especiais
     mapping = {
         "Val.líq.": "VALOR_LIQUIDO",
@@ -82,14 +80,11 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         "PEP": "PEP",
         "TIPO": "TIPO"
     }
-    
     # Procura por colunas que contenham "Val.líq." mesmo com espaços ou não-quebra-de-espaço
     for col in df.columns:
         if "Val.líq." in col:
             df = df.rename(columns={col: "VALOR_LIQUIDO"})
-            
     return df.rename(columns=mapping)
-
 
 def process_generic(source_name: str, spreadsheet_id: str, gid: str) -> pd.DataFrame:
     """Função genérica para processar as bases de pedidos."""
@@ -102,7 +97,6 @@ def process_generic(source_name: str, spreadsheet_id: str, gid: str) -> pd.DataF
     
     required_cols = ["DATA_ENVIO", "RESPONSAVEL", "PEDIDO", "VALOR_LIQUIDO", "DATA_DOC"]
     validate_required_columns(df, required_cols, source_name)
-
     # Conversões de tipo
     df = df.assign(
         DATA_ENVIO=safe_to_datetime(df["DATA_ENVIO"]),
@@ -112,8 +106,6 @@ def process_generic(source_name: str, spreadsheet_id: str, gid: str) -> pd.DataF
     )
     
     return df
-
-
 def main() -> None:
     """Ponto de entrada do pipeline de ETL de Pedidos de Obra."""
     logger.info("--- Iniciando Pipeline de Pedidos de Obra ---")
