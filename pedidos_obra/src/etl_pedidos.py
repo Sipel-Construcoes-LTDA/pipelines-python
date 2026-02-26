@@ -77,7 +77,6 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     for col in df.columns:
         if "Val.líq." in col:
             df = df.rename(columns={col: "VALOR_LIQUIDO"})
-            
     return df.rename(columns=mapping)
 
 def apply_specific_filters(df: pd.DataFrame, source_name: str, discards: Dict[str, int]) -> pd.DataFrame:
@@ -186,7 +185,7 @@ def main() -> None:
 
     # Seleção e ordenação final das colunas
     colunas_finais = [
-        "DATA_ENVIO", "DATA_DOC", "RESPONSAVEL", "TIPO", "PEP", "TEXTO_APOS_DELIMITADOR", 
+        "DATA_ENVIO", "DATA_DOC", "RESPONSAVEL", "TIPO", "PEP", "TEXTO_APOS_DELIMITADOR",
         "DEFINICAO", "PEDIDO", "VALOR_LIQUIDO", "CONTRATO", "MUNICIPIO", "BASE", "CICLO",
         "DESCRICAO", "SETOR", "TEXTO_BREVE", "FONTE_ORIGEM", "CATEGORIA"
     ]
