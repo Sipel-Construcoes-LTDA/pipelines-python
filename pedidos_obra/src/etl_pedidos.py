@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
 
 import pandas as pd
 
@@ -56,7 +56,6 @@ def clean_currency(series: pd.Series) -> pd.Series:
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Remove espaços extras nos nomes das colunas e aplica mapeamento padrão."""
     df.columns = [col.strip() for col in df.columns]
-    
     mapping = {
         "Val.líq.": "VALOR_LIQUIDO",
         "DATA ENVIO": "DATA_ENVIO",
@@ -74,7 +73,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         "SETOR": "SETOR",
         "TEXTO BREVE": "TEXTO_BREVE"
     }
-    
+
     for col in df.columns:
         if "Val.líq." in col:
             df = df.rename(columns={col: "VALOR_LIQUIDO"})
