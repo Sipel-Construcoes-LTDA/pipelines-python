@@ -82,7 +82,6 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def apply_specific_filters(df: pd.DataFrame, source_name: str, discards: Dict[str, int]) -> pd.DataFrame:
     """Aplica os filtros de linha e rastreia os descartes por motivo."""
-    
     # Filtro PEP não vazio para Bonfim e Jacobina
     if source_name in ["Bonfim_obra", "Jacobina_obra", "Bonfim_manut", "Jacobina_manut"]:
         initial_count = len(df)
@@ -105,7 +104,6 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
     """Função principal para processar cada fonte individualmente."""
     logger.info(f"Processando fonte: {source_name}")
     url = get_url(spreadsheet_id, gid)
-    
     try:
         df = pd.read_csv(url)
     except Exception as e:
@@ -120,10 +118,8 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
     discards["Linhas Completamente Vazias"] += (total_bruto - len(df))
 
     df = standardize_columns(df)
-    
     # Aplicar filtros específicos do Power Query (Filtro de Setor removido conforme pedido)
     df = apply_specific_filters(df, source_name, discards)
-    
     # Conversões de tipo
     if "DATA_ENVIO" in df.columns:
         df["DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
@@ -139,7 +135,6 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
     # Adicionar metadados da fonte
     df["FONTE_ORIGEM"] = source_name
     df["CATEGORIA"] = "OBRA" if "obra" in source_name.lower() else "MANUT"
-    
     return df
 
 def main() -> None:
@@ -195,7 +190,6 @@ def main() -> None:
         "DEFINICAO", "PEDIDO", "VALOR_LIQUIDO", "CONTRATO", "MUNICIPIO", "BASE", "CICLO",
         "DESCRICAO", "SETOR", "TEXTO_BREVE", "FONTE_ORIGEM", "CATEGORIA"
     ]
-    
     for col in colunas_finais:
         if col not in df_final.columns:
             df_final[col] = pd.NA
@@ -210,13 +204,10 @@ def main() -> None:
     output_dir = MODULE_ROOT / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "pedidos_consolidados.csv"
-    
     df_final.to_csv(output_path, index=False, sep=";", encoding="utf-8-sig")
-
     logger.info("--- Pipeline concluído! ---")
     logger.info(f"Arquivo salvo em: {output_path}")
     logger.info(f"Total consolidado: {len(df_final)} pedidos")
-    
     total_descartado = sum(discards_global.values())
     logger.info("="*40)
     logger.info(f"RESUMO DE DESCARTE (TOTAL: {total_descartado} linhas)")
