@@ -175,7 +175,21 @@ def apply_business_rules(df: pd.DataFrame) -> pd.DataFrame:
     if "Created" in df.columns:
         df["Created_Date"] = pd.to_datetime(df["Created"]).dt.normalize()
 
-    if "DataCriacaoReserva" in df.columns:
+    # Nova Regra de Negócio para DataSolicPrev (Processo de Encerramento)
+    # Sempre 2 dias úteis (48 horas) para todos os tipos de solicitação
+    if "Created_Date" in df.columns:
+        logger.info(
+            "Calculando DataSolicPrev com base em dias úteis (Regra Encerramento: 48h)..."
+        )
+        # Padrão: +2 dias úteis (48 horas úteis)
+        df["DataSolicPrev"] = df["Created_Date"] + pd.offsets.BusinessDay(2)
+
+        # Fallback se necessário
+        if "DataCriacaoReserva" in df.columns:
+            df["DataSolicPrev"] = df["DataSolicPrev"].fillna(df["DataCriacaoReserva"])
+
+    elif "DataCriacaoReserva" in df.columns:
+        # Fallback legado para casos sem Created_Date
         if "DataSolicPrev" not in df.columns:
             df["DataSolicPrev"] = df["DataCriacaoReserva"]
         else:
