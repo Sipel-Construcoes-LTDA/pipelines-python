@@ -1,4 +1,3 @@
 @echo off
-echo Iniciando ETL de Pedidos de Obra...
-python etl_pedidos.py
-pause
+python "C:\Users\sipel\OneDrive - sipel.com.br\pipelines-dados-SIPEL\pedidos_obra\src\etl_pedidos.py"
+exit

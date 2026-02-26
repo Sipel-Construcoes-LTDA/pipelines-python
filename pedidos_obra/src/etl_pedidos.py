@@ -1,4 +1,5 @@
 import logging
+import csv
 from pathlib import Path
 from typing import Dict
 
@@ -38,20 +39,45 @@ def get_url(spreadsheet_id: str, gid: str) -> str:
 
 def safe_to_datetime(series: pd.Series) -> pd.Series:
     """Converte série para datetime com segurança para o formato brasileiro."""
-    return pd.to_datetime(series, errors="coerce", dayfirst=True)
+    try:
+        return pd.to_datetime(series, errors="coerce", dayfirst=True)
+    except Exception as e:
+        logger.warning(f"Erro na conversão de data: {e}")
+        return pd.Series([pd.NA] * len(series))
+
+def clear_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Limpa strings (remove ; e \n) para evitar quebra de estrutura no CSV."""
+    # Seleciona apenas colunas de texto (object)
+    str_cols = df.select_dtypes(include=["object"]).columns
+    for col in str_cols:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace(r"[\r\n;]+", " ", regex=True)
+            .str.strip()
+            .replace({"nan": None, "None": None, "<NA>": None})
+        )
+    return df
 
 def clean_currency(series: pd.Series) -> pd.Series:
-    """Limpa valores monetários (Ex: R$ 1.234,56 -> 1234.56)."""
+    """Limpa valores monetários (Ex: R$ 1.234,56 -> 1234.56) e garante tipo float."""
     if series is None or series.empty:
-        return series
-    clean_series = (
-        series.astype(str)
-        .str.replace("R$", "", regex=False)
-        .str.replace(".", "", regex=False)
-        .str.replace(",", ".", regex=False)
-        .str.strip()
-    )
-    return pd.to_numeric(clean_series, errors="coerce")
+        return pd.Series(dtype=float)
+    
+    try:
+        clean_series = (
+            series.astype(str)
+            .str.replace("R$", "", regex=False)
+            .str.replace(".", "", regex=False)
+            .str.replace(",", ".", regex=False)
+            .str.replace(r"\s+", "", regex=True)
+            .str.strip()
+        )
+        # Substitui vazios por 0.0 antes de converter para evitar erros de tipo
+        return pd.to_numeric(clean_series, errors="coerce").fillna(0.0).astype(float)
+    except Exception as e:
+        logger.warning(f"Erro ao limpar coluna monetária: {e}")
+        return pd.Series([0.0] * len(series), dtype=float)
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Remove espaços extras nos nomes das colunas e aplica mapeamento padrão."""
@@ -119,17 +145,21 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
     df = standardize_columns(df)
     # Aplicar filtros específicos do Power Query (Filtro de Setor removido conforme pedido)
     df = apply_specific_filters(df, source_name, discards)
-    # Conversões de tipo
+    # Conversões de tipo com tratamento de exceção (try-except implícito no safe_to_datetime)
     if "DATA_ENVIO" in df.columns:
         df["DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
     if "DATA_DOC" in df.columns:
         df["DATA_DOC"] = safe_to_datetime(df["DATA_DOC"])
-    if "VALOR_LIQUIDO" in df.columns:
-        df["VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
-    if "PEDIDO" in df.columns:
-        df["PEDIDO"] = pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int)
-    if "CONTRATO" in df.columns:
-        df["CONTRATO"] = pd.to_numeric(df["CONTRATO"], errors="coerce").fillna(0).astype(int)
+    
+    try:
+        if "VALOR_LIQUIDO" in df.columns:
+            df["VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
+        if "PEDIDO" in df.columns:
+            df["PEDIDO"] = pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int)
+        if "CONTRATO" in df.columns:
+            df["CONTRATO"] = pd.to_numeric(df["CONTRATO"], errors="coerce").fillna(0).astype(int)
+    except Exception as e:
+        logger.error(f"Erro ao converter tipos numéricos em {source_name}: {e}")
 
     # Adicionar metadados da fonte
     df["FONTE_ORIGEM"] = source_name
@@ -195,6 +225,9 @@ def main() -> None:
 
     df_final = df_final[colunas_finais].copy()
 
+    # Limpeza final de strings para evitar quebra no CSV
+    df_final = clear_dataframe(df_final)
+
     # Formatação final para CSV
     df_final["DATA_ENVIO"] = pd.to_datetime(df_final["DATA_ENVIO"]).dt.date
     df_final["DATA_DOC"] = pd.to_datetime(df_final["DATA_DOC"]).dt.date
@@ -203,7 +236,16 @@ def main() -> None:
     output_dir = MODULE_ROOT / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "pedidos_consolidados.csv"
-    df_final.to_csv(output_path, index=False, sep=";", encoding="utf-8-sig")
+    
+    # Usar quoting=csv.QUOTE_ALL para evitar erros de column shifting
+    df_final.to_csv(
+        output_path,
+        index=False,
+        sep=";",
+        encoding="utf-8-sig",
+        date_format="%Y-%m-%d",
+        quoting=csv.QUOTE_ALL
+    )
     logger.info("--- Pipeline concluído! ---")
     logger.info(f"Arquivo salvo em: {output_path}")
     logger.info(f"Total consolidado: {len(df_final)} pedidos")
