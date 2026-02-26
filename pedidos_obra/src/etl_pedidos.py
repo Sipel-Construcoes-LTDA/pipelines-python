@@ -1,5 +1,5 @@
-import logging
 import csv
+import logging
 from pathlib import Path
 from typing import Dict
 
@@ -63,7 +63,7 @@ def clean_currency(series: pd.Series) -> pd.Series:
     """Limpa valores monetários (Ex: R$ 1.234,56 -> 1234.56) e garante tipo float."""
     if series is None or series.empty:
         return pd.Series(dtype=float)
-    
+
     try:
         clean_series = (
             series.astype(str)
@@ -150,7 +150,7 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
         df["DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
     if "DATA_DOC" in df.columns:
         df["DATA_DOC"] = safe_to_datetime(df["DATA_DOC"])
-    
+
     try:
         if "VALOR_LIQUIDO" in df.columns:
             df["VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
@@ -236,7 +236,7 @@ def main() -> None:
     output_dir = MODULE_ROOT / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "pedidos_consolidados.csv"
-    
+
     # Usar quoting=csv.QUOTE_ALL para evitar erros de column shifting
     df_final.to_csv(
         output_path,
