@@ -42,12 +42,10 @@ pipelines-dados-SIPEL/
 ├── materiais_obra/
 │   ├── data/
 │   └── src/
-├── produtividade_comercial/
-│   ├── 2024/
-│   ├── 2025/
-│   ├── 2026/
+├── vistorias_comercial/
 │   ├── data/
-│   └── src/etl_produtividade.py
+│   ├── src/
+│   └── etl_vistorias.py
 ├── .pre-commit-config.yaml      # Configuração dos Hooks de Pre-commit
 ├── GEMINI.md                      # Diretrizes da IA e padrões de engenharia
 ├── README.md                      # Documentação oficial
@@ -195,6 +193,19 @@ Ecossistema de pipelines para gestão de suprimentos e movimentação de materia
     *   **Consolidação Geral**: Cruzamento automático entre solicitações diretas e reservas técnicas para uma visão 360º do almoxarifado.
 *   **Output**: `data/processed/solicitacoes_consolidadas_geral.csv` e `fato_movimentacoes_itens.csv`.
 
+### 8. Vistorias Comercial
+*Local: `/vistorias_comercial`*
+*Script: `src/etl_vistorias.py`*
+
+Pipeline de consolidação de vistorias técnicas registradas em planilhas do Google Sheets para as bases de Senhor do Bonfim, Jacobina e Juazeiro.
+*   **Entrada**: Exportação via CSV das planilhas de controle de vistorias (Google Sheets).
+*   **Regras de Negócio**:
+    *   **Mapeamento Unificado**: Padronização de nomes de colunas variantes entre as bases (ex: "UTEP" -> "MUNICIPIO", "LOCAL" -> "MUNICIPIO", "COLABORADOR" -> "RESPONSAVEL").
+    *   **Higienização de Notas**: Garantia de que o campo `NOTA` seja estritamente numérico (Inteiro).
+    *   **Tratamento de Datas**: Conversão robusta de datas com suporte ao formato brasileiro e remoção de registros sem data de contato.
+    *   **Consolidação**: Unificação de todas as bases em um único schema de saída com 7 colunas essenciais.
+*   **Saída**: `data/processed/vistorias_consolidadas.csv`.
+
 ## 📦 Como Executar os Pipelines
 
 Após configurar o ambiente de desenvolvimento (ver seção "Qualidade de Código e CI/CD"), você pode executar os pipelines individualmente a partir da raiz do projeto.
@@ -237,6 +248,11 @@ python materiais_obra/src/etl_reservas.py
 
 # 2. Consolidar movimentações detalhadas
 python materiais_obra/src/etl_movimentacoes_detalhada.py
+```
+
+**Vistorias Comercial:**
+```bash
+python vistorias_comercial/src/etl_vistorias.py
 ```
 
 ---
@@ -414,6 +430,33 @@ graph TD
     D --> E
     E --> F
     F --> G & H
+```
+
+### 7. Vistorias Comercial
+```mermaid
+graph TD
+    subgraph Fontes
+        A[Google Sheets: Bonfim]
+        B[Google Sheets: Jacobina]
+        C[Google Sheets: Juazeiro]
+    end
+
+    subgraph ETL[etl_vistorias.py]
+        D[Exportação CSV via URL]
+        E[Mapeamento Unificado de Colunas]
+        F[Limpeza: Nota & Datas]
+        G[Consolidação Global]
+    end
+
+    subgraph Saída
+        H[(vistorias_consolidadas.csv)]
+    end
+
+    A & B & C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
 ```
 
 ## 📄 Licença
