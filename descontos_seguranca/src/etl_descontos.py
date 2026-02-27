@@ -11,7 +11,11 @@ logging.basicConfig(
 )
 
 # --- Constantes de Caminhos ---
-BASE_PATH: str = os.path.join(os.path.dirname(__file__), "..", "data")
+# Normalização para evitar problemas com 'ç' em sistemas legados ou OneDrive
+BASE_PATH: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+if "descontos_segurança" in BASE_PATH:
+    BASE_PATH = BASE_PATH.replace("descontos_segurança", "descontos_seguranca")
+
 INPUT_PATH: str = os.path.join(BASE_PATH, "auxiliary")
 OUTPUT_PATH: str = os.path.join(BASE_PATH, "processed")
 COLABORADORES_FILES: Dict[str, str] = {

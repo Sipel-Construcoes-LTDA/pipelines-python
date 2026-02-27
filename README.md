@@ -152,7 +152,7 @@ Pipeline de integração para rastreamento de encerramentos técnicos e status d
 *   **Output**: `data/processed/faturamentos_encerramento.csv`.
 
 ### 5. Descontos de Segurança
-*Local: `/descontos_segurança`*
+*Local: `/descontos_seguranca`*
 *Script: `src/etl_descontos.py`*
 
 Pipeline projetado para consolidar dados de colaboradores de múltiplas bases (Bonfim, Jacobina, Juazeiro) e cruzá-los com um arquivo de descontos de segurança.
