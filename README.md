@@ -42,6 +42,9 @@ pipelines-dados-SIPEL/
 ├── materiais_obra/
 │   ├── data/
 │   └── src/
+├── pedidos_obra/
+│   ├── data/
+│   └── src/etl_pedidos.py
 ├── vistorias_comercial/
 │   ├── data/
 │   ├── src/
@@ -206,6 +209,21 @@ Pipeline de consolidação de vistorias técnicas registradas em planilhas do Go
     *   **Consolidação**: Unificação de todas as bases em um único schema de saída com 7 colunas essenciais.
 *   **Saída**: `data/processed/vistorias_consolidadas.csv`.
 
+### 9. Pedidos de Obra e Manutenção
+*Local: `/pedidos_obra`*
+*Script: `src/etl_pedidos.py`*
+
+Pipeline de consolidação de pedidos de campo provenientes das planilhas de gestão de Obra e Manutenção das bases Senhor do Bonfim, Jacobina e Juazeiro.
+*   **Input**: Exportação CSV via URL do Google Sheets (6 fontes distintas).
+*   **Regras de Negócio**:
+    *   **Filtragem de PEP**: Remoção de linhas sem código `PEP` nas bases Bonfim e Jacobina (limpeza de rascunhos).
+    *   **Integridade de Base**: Filtro estrito para garantir que a base `Jacobina_obra` contenha apenas registros marcados como "JACOBINA".
+    *   **Higienização Financeira**: Conversão de valores monetários (R$) com tratamento de separadores de milhar e decimal para `float`.
+    *   **Sanitização Anti-Shifting**: Remoção automática de quebras de linha (`\n`) e delimitadores (`;`) em todos os campos de texto para preservar a integridade estrutural do CSV.
+    *   **Padronização**: Unificação de nomes de colunas e substituição de termos variantes (ex: "Uso Mutuo" -> "USO MUTUO").
+    *   **Enriquecimento**: Extração do código secundário do PEP e categorização entre `OBRA` e `MANUT`.
+*   **Output**: `data/processed/pedidos_consolidados.csv`.
+
 ## 📦 Como Executar os Pipelines
 
 Após configurar o ambiente de desenvolvimento (ver seção "Qualidade de Código e CI/CD"), você pode executar os pipelines individualmente a partir da raiz do projeto.
@@ -253,6 +271,11 @@ python materiais_obra/src/etl_movimentacoes_detalhada.py
 **Vistorias Comercial:**
 ```bash
 python vistorias_comercial/src/etl_vistorias.py
+```
+
+**Pedidos de Obra:**
+```bash
+python pedidos_obra/src/etl_pedidos.py
 ```
 
 ---
@@ -453,6 +476,35 @@ graph TD
     end
 
     A & B & C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+```
+
+### 8. Pedidos de Obra e Manutenção
+```mermaid
+graph TD
+    subgraph Fontes
+        A[Google Sheets: Obra/Manut<br/>Bonfim/Jacobina/Juazeiro]
+    end
+
+    subgraph ETL[etl_pedidos.py]
+        B[Extração CSV via URL]
+        C[Filtragem Estrita: PEP & Base]
+        D[Normalização: Moeda & Datas]
+        E[Sanitização Anti-Shifting]
+        F[Extração de Metadados: PEP]
+        G[Consolidação Global]
+    end
+
+    subgraph Saída
+        H[(pedidos_consolidados.csv)]
+    end
+
+    A --> B
+    B --> C
+    C --> D
     D --> E
     E --> F
     F --> G
