@@ -1,0 +1,1 @@
+﻿Nota;Texto code codific.;Local;Tp.;StatUsuár.;CEP;Nº do pedido;Nr. Série;Urbano/Rur;CenTrabRes;Modif.por;Bairro;Loclz/clas;Den.exec..1;Rua;De;Inicio da Nota;Finalização da nota;Conc. desejada;Encerramento da nota;Criação da nota;Nota vistoriada;Data de Finalização

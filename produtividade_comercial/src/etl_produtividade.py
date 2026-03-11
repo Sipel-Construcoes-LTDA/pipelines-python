@@ -160,9 +160,9 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
 
     df["Nota vistoriada"] = df["Nº do pedido"].apply(check_vistoria)
     df.rename(columns={"Nr. Série Equip.": "Nr. Série"}, inplace=True)
-    df["Data de Finalização"] = df["Finalização da nota"].fillna(
-        df["Encerramento da nota"]
-    )
+    
+    # Criar a coluna consolidada solicitada pelo Power BI
+    df["Data de Finalização"] = df["Finalização da nota"].fillna(df["Encerramento da nota"])
 
     cols_to_remove = [
         "Concl.desj",
@@ -197,6 +197,7 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
         "Centro cst",
         "Den.exec.",
         "Den.exec._1",
+        "Den.exec..1",  # Removendo a duplicata que surge na leitura
         "Exec.por",
         "Execução",
         "P",
