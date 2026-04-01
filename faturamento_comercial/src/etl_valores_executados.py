@@ -74,10 +74,21 @@ def load_fato_zrm_map() -> pd.DataFrame:
 
 def load_dim_values(zrm_map: pd.DataFrame, year_label: str) -> pd.DataFrame:
     """
-    Carrega valores de serviços (2024 ou 2025) e prepara tabela de lookup.
+    Carrega valores de serviços (2024, 2025 ou 2026) e prepara tabela de lookup.
     """
     path = os.path.join(DIMENSOES_DIR, "dim_valor_servicos.xlsx")
-    sheet_name = "Valores antigos" if year_label == "2024" else "Valores novos"
+    
+    # Mapeamento das abas por ano
+    sheet_map = {
+        "2024": "Valores antigos",
+        "2025": "Valores novos",
+        "2026": "Valores novos 2026"
+    }
+    
+    sheet_name = sheet_map.get(year_label)
+    if not sheet_name:
+        logger.error(f"Ano {year_label} não configurado para carregar valores.")
+        return pd.DataFrame(columns=["FK_FINAL", f"Valor Total {year_label}"])
 
     logger.info(f"Carregando dim_valor_servicos ({sheet_name}) de {path}")
     df = pd.read_excel(path, sheet_name=sheet_name)
@@ -112,8 +123,9 @@ def process_pipeline() -> None:
     dim_ct = load_dim_ct()
     zrm_map = load_fato_zrm_map()
 
-    dim_val_2024 = load_dim_values(zrm_map, "2024")
-    dim_val_2025 = load_dim_values(zrm_map, "2025")
+    # Definimos os anos que queremos processar
+    years = ["2024", "2025", "2026"]
+    dim_vals = {year: load_dim_values(zrm_map, year) for year in years}
 
     # 2. Encontrar e Processar Arquivos Mensais
     all_files: List[str] = glob.glob(
@@ -179,12 +191,11 @@ def process_pipeline() -> None:
     )
     full_df["PK"] = full_df["BASE OPERACIONAL"] + full_df["ChaveFK"]
 
-    full_df = pd.merge(
-        full_df, dim_val_2024, left_on="PK", right_on="FK_FINAL", how="left"
-    )
-    full_df = pd.merge(
-        full_df, dim_val_2025, left_on="PK", right_on="FK_FINAL", how="left"
-    )
+    # Merge de valores para cada ano definido
+    for year in years:
+        full_df = pd.merge(
+            full_df, dim_vals[year], left_on="PK", right_on="FK_FINAL", how="left"
+        ).drop(columns=["FK_FINAL"], errors="ignore")
 
     group_cols: List[str] = ["Nota", "Data", "BASE OPERACIONAL"]
     additional_cols: List[str] = ["Fim avaria", "Texto code para codificação", "Local"]
@@ -194,18 +205,18 @@ def process_pipeline() -> None:
             full_df[col] = full_df[col].fillna("").astype(str).str.strip()
             group_cols.append(col)
 
-    cols_vals = ["Valor Total 2024", "Valor Total 2025"]
+    cols_vals = [f"Valor Total {year}" for year in years]
     for c in cols_vals:
         if c not in full_df.columns:
             full_df[c] = 0.0
         full_df[c] = full_df[c].fillna(0.0)
 
+    # Agrupamento final
     final_df = full_df.groupby(group_cols, as_index=False)[cols_vals].sum()
 
     initial_len = len(final_df)
-    final_df = final_df[
-        ~((final_df["Valor Total 2024"] == 0) & (final_df["Valor Total 2025"] == 0))
-    ]
+    # Remove linhas onde todos os anos estão zerados
+    final_df = final_df[~(final_df[cols_vals] == 0).all(axis=1)]
     logger.info(f"Linhas removidas (valores zerados): {initial_len - len(final_df)}")
 
     # Output
