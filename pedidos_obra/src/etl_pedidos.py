@@ -1,9 +1,12 @@
+import base64
 import csv
 import logging
+from io import BytesIO
 from pathlib import Path
 from typing import Dict
 
 import pandas as pd
+import requests
 
 # Configuração de Logging conforme PADROES_PROJETO.md
 logging.basicConfig(
@@ -12,6 +15,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configurações & Constantes ---
+# Link de download direto público para fServiço CIF
+CIF_URL = "https://onedrive.live.com/:x:/g/personal/15cb95ca5bdc1f45/IQB4UPujoI5bR4wLOkBacaKWATIhf0G_VXSWSX806WuzAsU?download=1"
+
 IDS_PLANILHAS = {
     "Bonfim_obra": "1xRM5ArGu70p0sUtoLNpmOx-pEogwcJsPEO5kVT7jaZY",
     "Jacobina_obra": "1oluRkWRsj6GuS8QJ0L3jFXi3FkLkCHCyVvbNpOjrdl4",
@@ -37,6 +43,18 @@ def get_url(spreadsheet_id: str, gid: str) -> str:
     """Gera a URL de exportação CSV para o Google Sheets."""
     return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
 
+def create_onedrive_directdownload(onedrive_link: str) -> str:
+    """Converte um link de compartilhamento do OneDrive em um link de download direto."""
+    try:
+        data_bytes64 = base64.b64encode(bytes(onedrive_link, "utf-8"))
+        data_bytes64_string = (
+            data_bytes64.decode("utf-8").replace("/", "_").replace("+", "-").rstrip("=")
+        )
+        return f"https://api.onedrive.com/v1.0/shares/u!{data_bytes64_string}/root/content"
+    except Exception as e:
+        logger.error(f"Erro ao converter link do OneDrive: {e}")
+        return onedrive_link
+
 def safe_to_datetime(series: pd.Series) -> pd.Series:
     """Converte série para datetime com segurança para o formato brasileiro."""
     try:
@@ -50,7 +68,7 @@ def clear_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Seleciona apenas colunas de texto (object)
     str_cols = df.select_dtypes(include=["object"]).columns
     for col in str_cols:
-        df[col] = (
+        df.loc[:, col] = (
             df[col]
             .astype(str)
             .str.replace(r"[\r\n;]+", " ", regex=True)
@@ -84,7 +102,9 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [col.strip() for col in df.columns]
     mapping = {
         "Val.líq.": "VALOR_LIQUIDO",
+        "VALOR LIQUIDO": "VALOR_LIQUIDO",
         "DATA ENVIO": "DATA_ENVIO",
+        "DATA DOC": "DATA_DOC",
         "Data doc": "DATA_DOC",
         "DEFINIÇÃO": "DEFINICAO",
         "RESPONSAVEL": "RESPONSAVEL",
@@ -126,8 +146,8 @@ def apply_specific_filters(df: pd.DataFrame, source_name: str, discards: Dict[st
     return df
 
 def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Dict[str, int]) -> pd.DataFrame:
-    """Função principal para processar cada fonte individualmente."""
-    logger.info(f"Processando fonte: {source_name}")
+    """Função principal para processar fontes do Google Sheets (CSV)."""
+    logger.info(f"Processando fonte Google Sheets: {source_name}")
     url = get_url(spreadsheet_id, gid)
     try:
         df = pd.read_csv(url)
@@ -143,32 +163,187 @@ def process_source(source_name: str, spreadsheet_id: str, gid: str, discards: Di
     discards["Linhas Completamente Vazias"] += (total_bruto - len(df))
 
     df = standardize_columns(df)
-    # Aplicar filtros específicos do Power Query (Filtro de Setor removido conforme pedido)
+    # Aplicar filtros específicos
     df = apply_specific_filters(df, source_name, discards)
-    # Conversões de tipo com tratamento de exceção (try-except implícito no safe_to_datetime)
+    
+    # Conversões de data
     if "DATA_ENVIO" in df.columns:
-        df["DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
+        df.loc[:, "DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
     if "DATA_DOC" in df.columns:
-        df["DATA_DOC"] = safe_to_datetime(df["DATA_DOC"])
+        df.loc[:, "DATA_DOC"] = safe_to_datetime(df["DATA_DOC"])
 
+    # Conversões numéricas
     try:
         if "VALOR_LIQUIDO" in df.columns:
-            df["VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
+            df.loc[:, "VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
         if "PEDIDO" in df.columns:
-            df["PEDIDO"] = pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int)
+            df.loc[:, "PEDIDO"] = pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int)
         if "CONTRATO" in df.columns:
-            df["CONTRATO"] = pd.to_numeric(df["CONTRATO"], errors="coerce").fillna(0).astype(int)
+            df.loc[:, "CONTRATO"] = pd.to_numeric(df["CONTRATO"], errors="coerce").fillna(0).astype(int)
     except Exception as e:
         logger.error(f"Erro ao converter tipos numéricos em {source_name}: {e}")
 
-    # Adicionar metadados da fonte
-    df["FONTE_ORIGEM"] = source_name
-    df["CATEGORIA"] = "OBRA" if "obra" in source_name.lower() else "MANUT"
+    # Metadados
+    df.loc[:, "CATEGORIA"] = "OBRA" if "obra" in source_name.lower() else "MANUT"
+    # FONTE ORIGEM é a junção da BASE e CATEGORIA
+    base_val = df["BASE"].astype(str).str.upper() if "BASE" in df.columns else "DESCONHECIDO"
+    df.loc[:, "FONTE_ORIGEM"] = base_val + "_" + df["CATEGORIA"]
+    return df
+
+def process_cif_source(discards: Dict[str, int]) -> pd.DataFrame:
+    """Função específica para processar a fonte fServiço CIF (Excel/OneDrive) seguindo lógica do Power Query."""
+    logger.info("Processando fonte OneDrive: fServico_CIF")
+    
+    try:
+        # Baixa o conteúdo do arquivo usando requests para maior robustez
+        response = requests.get(CIF_URL, timeout=30)
+        response.raise_for_status()
+        
+        # header=1 equivale ao Table.PromoteHeaders feito duas vezes no Power Query
+        df = pd.read_excel(BytesIO(response.content), header=1)
+    except Exception as e:
+        logger.error(f"Erro ao ler planilha CIF do OneDrive: {e}")
+        return pd.DataFrame()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    total_bruto = len(df)
+    # 1. Limpeza inicial de linhas vazias
+    df = df.dropna(how="all")
+    
+    # 2. Remover colunas CTE e STATUS conforme Power Query
+    cols_to_drop = ["CTE", "PAGO-VERDE-PENDENTE-VERMELHO"]
+    df = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
+
+    # 3. Substituir vazios/strings vazias por NaN para o FillDown
+    df = df.replace(r'^\s*$', pd.NA, regex=True)
+
+    # 4. FillDown (Preenchimento para baixo) conforme Power Query
+    fill_cols = [
+        "DEPOSITO DESTINO", "SERVIÇOS REALIZADO", "MOTORISTA", "FABRICA", 
+        "NF", "PEDIDO", "MATERIAL", "QNT", "VALOR UND", "VALOR TOTAL"
+    ]
+    fill_cols = [c for c in fill_cols if c in df.columns]
+    df.loc[:, fill_cols] = df[fill_cols].ffill()
+
+    # 5. Filtrar linhas onde DATA é nulo (conforme Power Query)
+    df = df[df["DATA"].notna()]
+    
+    # 6. Lógica condicional de VALOR (VALOR FATO)
+    # #"Coluna Condicional Adicionada" = if [DEPOSITO DESTINO] = "622" then 1960 ...
+    def calculate_valor_fato(row):
+        dep = str(row.get("DEPOSITO DESTINO", "")).strip()
+        if dep == "622": return 1960
+        if dep == "654": return 600
+        if dep == "725": return 2856
+        return None
+
+    # #"Coluna Condicional Adicionada1" = if [SERVIÇOS REALIZADO] = "TRANSPORTE" then [VALOR FATO] else [VALOR TOTAL]
+    def calculate_final_valor(row):
+        serv = str(row.get("SERVIÇOS REALIZADO", "")).strip().upper()
+        valor_total = row.get("VALOR TOTAL", 0)
+        if serv == "TRANSPORTE":
+            v_fato = calculate_valor_fato(row)
+            return v_fato if v_fato is not None else valor_total
+        return valor_total
+
+    df.loc[:, "VALOR TOTAL"] = df.apply(calculate_final_valor, axis=1)
+
+    # 7. Mapeamento de DEPOSITO DESTINO (BASE)
+    base_map = {
+        "654": "Juazeiro",
+        "725": "Remanso",
+        "622": "Bonfim",
+        "724": "Jacobina",
+        "Jacobina-JACOBINA": "Jacobina"
+    }
+    df.loc[:, "DEPOSITO DESTINO"] = df["DEPOSITO DESTINO"].astype(str).replace(base_map)
+
+    # 8. Substituições de texto finais (NÃO ESPECIFICADO / Não especificado)
+    if "SERVIÇOS REALIZADO" in df.columns:
+        df.loc[:, "SERVIÇOS REALIZADO"] = df["SERVIÇOS REALIZADO"].fillna("NÃO ESPECIFICADO").replace("", "NÃO ESPECIFICADO")
+    if "DEPOSITO DESTINO" in df.columns:
+        df.loc[:, "DEPOSITO DESTINO"] = df["DEPOSITO DESTINO"].fillna("Não especificado").replace("", "Não especificado")
+    if "MATERIAL" in df.columns:
+        df.loc[:, "MATERIAL"] = df["MATERIAL"].fillna("Não especificado").replace("", "Não especificado")
+
+    # --- INTEGRAÇÃO COM PADRÕES DO PROJETO ---
+    
+    # Renomeação específica solicitada pelo usuário
+    rename_map = {
+        "SERVIÇOS REALIZADO": "TIPO",
+        "DEPOSITO DESTINO": "BASE",
+        "VALOR TOTAL": "VALOR LIQUIDO",
+        "PEDIDO": "PEDIDO"
+    }
+    df = df.rename(columns=rename_map)
+    
+    # A coluna DATA vira tanto DATA ENVIO quanto DATA DOC
+    if "DATA" in df.columns:
+        df.loc[:, "DATA ENVIO"] = df["DATA"]
+        df.loc[:, "DATA DOC"] = df["DATA"]
+        # Extrair nome do mês para a coluna CICLO (apenas para CIF)
+        try:
+            temp_date = pd.to_datetime(df["DATA"], errors="coerce", dayfirst=True)
+            df.loc[:, "CICLO"] = temp_date.dt.strftime('%B')
+        except Exception as e:
+            logger.warning(f"Erro ao extrair mês para CICLO em CIF: {e}")
+
+    # Padronização de colunas (converte espaços em underscores, etc)
+    df = standardize_columns(df)
+    
+    # Tratamento de RESPONSAVEL e PEP (regras de negócio do pipeline)
+    if "RESPONSAVEL" in df.columns:
+        df.loc[:, "RESPONSAVEL"] = df["RESPONSAVEL"].fillna("Logística").replace(["nan", ""], "Logística")
+    else:
+        df.loc[:, "RESPONSAVEL"] = "Logística"
+
+    if "PEP" in df.columns:
+        df.loc[:, "PEP"] = df["PEP"].fillna("CIF - 00000").replace(["nan", ""], "CIF - 00000")
+    else:
+        df.loc[:, "PEP"] = "CIF - 00000"
+
+    # Conversões finais de tipo
+    if "DATA_ENVIO" in df.columns:
+        df.loc[:, "DATA_ENVIO"] = safe_to_datetime(df["DATA_ENVIO"])
+    if "DATA_DOC" in df.columns:
+        df.loc[:, "DATA_DOC"] = safe_to_datetime(df["DATA_DOC"])
+
+    try:
+        if "VALOR_LIQUIDO" in df.columns:
+            # pd.read_excel já pode ter interpretado como float, mas garantimos
+            if df["VALOR_LIQUIDO"].dtype == object:
+                df.loc[:, "VALOR_LIQUIDO"] = clean_currency(df["VALOR_LIQUIDO"])
+            else:
+                df.loc[:, "VALOR_LIQUIDO"] = pd.to_numeric(df["VALOR_LIQUIDO"], errors="coerce").fillna(0.0)
+        
+        if "PEDIDO" in df.columns:
+            df.loc[:, "PEDIDO"] = pd.to_numeric(df["PEDIDO"], errors="coerce").fillna(0).astype(int)
+    except Exception as e:
+        logger.error(f"Erro ao converter tipos numéricos em fServico_CIF: {e}")
+
+    # Metadados finais
+    df.loc[:, "CATEGORIA"] = "CIF"
+    base_val = df["BASE"].astype(str).str.upper() if "BASE" in df.columns else "DESCONHECIDO"
+    df.loc[:, "FONTE_ORIGEM"] = base_val + "_" + df["CATEGORIA"]
+    
+    # Salvar alteração da CIF em data raw para auditoria/debug
+    try:
+        raw_dir = MODULE_ROOT / "data" / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        cif_raw_path = raw_dir / "fServico_CIF_processado.csv"
+        df.to_csv(cif_raw_path, index=False, sep=";", encoding="utf-8-sig", quoting=csv.QUOTE_ALL)
+        logger.info(f"Dados processados do CIF salvos em: {cif_raw_path}")
+    except Exception as e:
+        logger.warning(f"Erro ao salvar arquivo raw do CIF: {e}")
+
+    discards["Linhas Completamente Vazias"] += (total_bruto - len(df))
     return df
 
 def main() -> None:
     """Ponto de entrada do pipeline de ETL de Pedidos."""
-    logger.info("--- Iniciando Pipeline de Pedidos (Obra + Manut) ---")
+    logger.info("--- Iniciando Pipeline de Pedidos (Obra + Manut + CIF) ---")
 
     processed_dfs = []
     discards_global = {
@@ -177,12 +352,19 @@ def main() -> None:
         "Filtro BASE (Não Jacobina)": 0
     }
 
+    # 1. Processar fontes Google Sheets
     for name, sheet_id in IDS_PLANILHAS.items():
         gid = GIDS[name]
         df = process_source(name, sheet_id, gid, discards_global)
         if not df.empty:
             processed_dfs.append(df)
             logger.info(f"Sucesso: {name} ({len(df)} linhas úteis)")
+
+    # 2. Processar fonte CIF (OneDrive)
+    df_cif = process_cif_source(discards_global)
+    if not df_cif.empty:
+        processed_dfs.append(df_cif)
+        logger.info(f"Sucesso: fServico_CIF ({len(df_cif)} linhas úteis)")
 
     if not processed_dfs:
         logger.error("Nenhuma fonte de dados foi processada. Encerrando.")
@@ -191,27 +373,22 @@ def main() -> None:
     logger.info("Consolidando bases (Table.Combine)...")
     df_final = pd.concat(processed_dfs, ignore_index=True)
 
-    # 1. Linhas em Branco Removidas (remove se todos os campos relevantes forem nulos/vazios)
+    # Limpezas e transformações pós-consolidação
     df_final = df_final.dropna(how="all")
 
-    # 2. Valor Substituído (RESPONSAVEL: "LOGISTICA " -> "LOGISTICA")
     if "RESPONSAVEL" in df_final.columns:
-        df_final["RESPONSAVEL"] = df_final["RESPONSAVEL"].astype(str).str.replace("LOGISTICA ", "LOGISTICA", regex=False)
+        df_final.loc[:, "RESPONSAVEL"] = df_final["RESPONSAVEL"].astype(str).str.replace("LOGISTICA ", "LOGISTICA", regex=False)
 
-    # 3. Valor Substituído1 (TIPO: "Uso Mutuo" -> "USO MUTUO")
-    # 4. Valor Substituído2 (TIPO: "Linha Viva Preventiva" -> "LINHA VIVA")
     if "TIPO" in df_final.columns:
-        df_final["TIPO"] = df_final["TIPO"].astype(str).replace({
+        df_final.loc[:, "TIPO"] = df_final["TIPO"].astype(str).replace({
             "Uso Mutuo": "USO MUTUO",
             "Linha Viva Preventiva": "LINHA VIVA"
         })
 
-    # 5. Texto Inserido Após o Delimitador (Extrai após o hífen no PEP)
     if "PEP" in df_final.columns:
-        # split("-", n=1) divide no primeiro hífen, .str[1] pega o que vem depois
-        df_final["TEXTO_APOS_DELIMITADOR"] = df_final["PEP"].astype(str).str.split("-", n=1).str[1]
+        df_final.loc[:, "TEXTO_APOS_DELIMITADOR"] = df_final["PEP"].astype(str).str.split("-", n=1).str[1]
     else:
-        df_final["TEXTO_APOS_DELIMITADOR"] = pd.NA
+        df_final.loc[:, "TEXTO_APOS_DELIMITADOR"] = pd.NA
 
     # Seleção e ordenação final das colunas
     colunas_finais = [
@@ -221,23 +398,20 @@ def main() -> None:
     ]
     for col in colunas_finais:
         if col not in df_final.columns:
-            df_final[col] = pd.NA
+            df_final.loc[:, col] = pd.NA
 
     df_final = df_final[colunas_finais].copy()
-
-    # Limpeza final de strings para evitar quebra no CSV
     df_final = clear_dataframe(df_final)
 
-    # Formatação final para CSV
-    df_final["DATA_ENVIO"] = pd.to_datetime(df_final["DATA_ENVIO"]).dt.date
-    df_final["DATA_DOC"] = pd.to_datetime(df_final["DATA_DOC"]).dt.date
+    # Formatação final de datas para CSV
+    df_final.loc[:, "DATA_ENVIO"] = pd.to_datetime(df_final["DATA_ENVIO"]).dt.date
+    df_final.loc[:, "DATA_DOC"] = pd.to_datetime(df_final["DATA_DOC"]).dt.date
 
     # Salvar output
     output_dir = MODULE_ROOT / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "pedidos_consolidados.csv"
+    output_path = output_dir / "fPedidos.csv"
 
-    # Usar quoting=csv.QUOTE_ALL para evitar erros de column shifting
     df_final.to_csv(
         output_path,
         index=False,
@@ -246,9 +420,11 @@ def main() -> None:
         date_format="%Y-%m-%d",
         quoting=csv.QUOTE_ALL
     )
+    
     logger.info("--- Pipeline concluído! ---")
     logger.info(f"Arquivo salvo em: {output_path}")
     logger.info(f"Total consolidado: {len(df_final)} pedidos")
+    
     total_descartado = sum(discards_global.values())
     logger.info("="*40)
     logger.info(f"RESUMO DE DESCARTE (TOTAL: {total_descartado} linhas)")
